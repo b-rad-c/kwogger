@@ -172,11 +172,27 @@ class Tail:
         self._file = open(path, 'r')
 
     #
-    # context manager
+    # file handler
     #
+
+    def tell(self):
+        return self._file.tell()
+
+    def seek_head(self):
+        self._file.seek(0)
+
+    def seek_tail(self):
+        self._file.seek(0, os.SEEK_END)
+
+    def seek_line(self, lineno):
+        print(f'Seek function not created: {lineno}')
 
     def close(self):
         self._file.close()
+
+    #
+    # context manager
+    #
 
     def __enter__(self):
         return self
@@ -189,10 +205,11 @@ class Tail:
     #
 
     def set_formatter(self, formatter):
-        try:
-            self._format = getattr(self, f'_formatter_{formatter}')
-        except AttributeError:
-            raise ValueError(f'Unknown formatter: {formatter}')
+        if formatter is not None:
+            try:
+                self._format = getattr(self, f'_formatter_{formatter}')
+            except AttributeError:
+                raise ValueError(f'Unknown formatter: {formatter}')
 
     def _formatter_raw(self, line):
         return line
@@ -251,12 +268,16 @@ class Tail:
 
         return colored(string + '\n', Kwogger.get_level_color(level))
 
-    def follow(self, formatter):
+    #
+    # methods for getting data
+    #
+
+    def follow(self, formatter=None):
         self.set_formatter(formatter)
 
         try:
 
-            self._file.seek(0, os.SEEK_END)
+            self.seek_tail()
 
             while True:
                 line = self._file.readline()
@@ -266,6 +287,14 @@ class Tail:
 
         except KeyboardInterrupt:
             pass
+
+    def parse_line(self, formatter=None):
+        """parse the next line,
+        :returns: str, or None if we are at EOF"""
+        self.set_formatter(formatter)
+        line = self._file.readline()
+        if line:
+            return self._format(line)
 
 
 class Menu(Cmd):
@@ -283,21 +312,52 @@ class Menu(Cmd):
         self.size = os.path.getsize(self.path)
         self.exists = os.path.exists(self.path)
 
-        print(f'path:    {self.path}')
-        print(f'exists:  {self.exists}')
-        print(f'size:    {self.size}')
+        print(f'path:      {self.path}')
+        print(f'exists:    {self.exists}')
+        print(f'size:      {self.size}')
+        print(f'pointer:   {self.tail.tell()}')
 
-    def do_tail(self, arg):
-        """tail supplied file, supply formatter as raw, basic (default formatter: basic)"""
-        formatter = arg if arg else 'default'
-        print(f'tailing with format: {formatter}')
-
+    def do_line(self, arg):
+        """get the next line"""
         try:
-            for entry in self.tail.follow(formatter):
+            entry = self.tail.parse_line()
+            if entry is None:
+                print(colored('\n    EOF\n', 'green'))
+            print(entry)
+        except ParseError as p:
+            p.parser.display_log()
+            raise
+
+    do_l = do_line
+
+    def do_follow(self, arg):
+        """seek to tail then follow supplied file, supply formatter as raw, basic (default formatter: basic)"""
+        try:
+            for entry in self.tail.follow():
                 print(entry)
         except ParseError as p:
             p.parser.display_log()
             raise
+
+    do_f = do_follow
+
+    def do_head(self, arg):
+        """seek to head of file"""
+        print(f'Pointer reset to 0')
+        self.tail.seek_head()
+
+    do_h = do_head
+
+    def do_tail(self, arg):
+        """seek to tail of file"""
+        self.tail.seek_tail()
+        print(f'Pointer at tail of file: {self.tail.tell()}')
+
+    do_t = do_tail
+
+    def do_tell(self, arg):
+        """return the pointer of the file handle"""
+        print(f'Pointer at {self.tail.tell()}')
 
     def do_q(self, arg):
         """Quits the program."""
