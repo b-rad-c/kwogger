@@ -1,0 +1,1 @@
+add support for multiple serialization formats; pickle and json

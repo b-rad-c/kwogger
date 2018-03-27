@@ -167,6 +167,7 @@ class Tail:
 
     def __init__(self, path):
         self._format = None
+        self.format_name = ''
         self.set_formatter('default')
         self.path = path
         self._file = open(path, 'r')
@@ -205,11 +206,12 @@ class Tail:
     #
 
     def set_formatter(self, formatter):
-        if formatter is not None:
-            try:
-                self._format = getattr(self, f'_formatter_{formatter}')
-            except AttributeError:
-                raise ValueError(f'Unknown formatter: {formatter}')
+        try:
+            self._format = getattr(self, f'_formatter_{formatter}')
+            self.format_name = formatter
+
+        except AttributeError:
+            raise ValueError(f'Unknown formatter: {formatter}')
 
     def _formatter_raw(self, line):
         return line
@@ -272,8 +274,7 @@ class Tail:
     # methods for getting data
     #
 
-    def follow(self, formatter=None):
-        self.set_formatter(formatter)
+    def follow(self):
 
         try:
 
@@ -288,13 +289,40 @@ class Tail:
         except KeyboardInterrupt:
             pass
 
-    def parse_line(self, formatter=None):
+    def parse_line(self):
         """parse the next line,
         :returns: str, or None if we are at EOF"""
-        self.set_formatter(formatter)
         line = self._file.readline()
         if line:
             return self._format(line)
+
+    def parse_prev(self):
+        """parse the previous line
+        :returns str, or None if we are beginning of file"""
+        pos = self.tell()
+        _buffer = ''
+        number_lines = 0
+        # print(f'init tell: {pos}')
+
+        while True:
+            if pos == 0:
+                # print(' :: return None')
+                return None
+
+            char = self._file.read(1)
+            if char == '\n':
+                number_lines += 1
+                # print(f'pos: {pos} number lines: {number_lines}')
+                if number_lines > 1:
+                    # self._file.seek(pos - 2)
+                    return self._format(_buffer[::-1])
+
+            else:
+                pos -= 1
+                if number_lines > 0:
+                    _buffer += char
+                # print(f'pos: {pos} char: {char}')
+                self._file.seek(pos)
 
 
 class Menu(Cmd):
@@ -317,18 +345,80 @@ class Menu(Cmd):
         print(f'size:      {self.size}')
         print(f'pointer:   {self.tail.tell()}')
 
+    def do_format(self, arg):
+        """set formatter of Tail object, ('raw', 'data', 'basic', 'default'), supply no argument for default"""
+        if arg:
+            try:
+                self.tail.set_formatter(arg)
+            except ValueError:
+                print(f'*** Unknown formatter: "{arg}"')
+        else:
+            self.tail.set_formatter('default')
+
+        print(f'formatter changed to: {self.tail.format_name}')
+
+    do_fmt = do_format
+
     def do_line(self, arg):
         """get the next line"""
         try:
             entry = self.tail.parse_line()
             if entry is None:
                 print(colored('\n    EOF\n', 'green'))
-            print(entry)
+            else:
+                print(entry)
         except ParseError as p:
             p.parser.display_log()
             raise
 
     do_l = do_line
+
+    def do_next(self, arg):
+        """get next line or, if at EOF then run follow command"""
+
+        # get entry
+        try:
+            entry = self.tail.parse_line()
+
+        except ParseError as p:
+            p.parser.display_log()
+            raise
+
+        if entry is None:
+            print(colored('... following ...', 'green'))
+            self.do_follow('')
+
+        else:
+            print(entry)
+
+    do_n = do_next
+
+    def do_prev(self, arg):
+        try:
+            entry = self.tail.parse_prev()
+        except ParseError as p:
+            p.parser.display_log()
+            raise
+
+        if entry is None:
+            print(colored('\n    BEGINNING OF FILE\n', 'green'))
+        else:
+            print(entry)
+
+    do_p = do_prev
+
+    def do_jump(self, arg):
+        try:
+            count = int(arg)
+        except ValueError:
+            count = 5
+
+        _method = self.do_next if count > 0 else self.do_prev
+
+        for n in range(abs(count)):
+            _method('')
+
+    do_j = do_jump
 
     def do_follow(self, arg):
         """seek to tail then follow supplied file, supply formatter as raw, basic (default formatter: basic)"""
