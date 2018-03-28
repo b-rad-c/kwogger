@@ -1,0 +1,4 @@
+[3-27-18 23:08]
+- core.py
+    - remove do_line cmd
+    - five parse previous line to remove trailing s from output

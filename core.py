@@ -219,6 +219,9 @@ class Tail:
     def _formatter_data(self, line):
         return str(Parser(line))
 
+    def _formatter_object(self, line):
+        return Parser(line)
+
     def _formatter_basic(self, line):
         entry = Parser(line).entry()
         string = f'source: {entry.source}\n'
@@ -289,15 +292,22 @@ class Tail:
         except KeyboardInterrupt:
             pass
 
-    def parse_line(self):
+    def parse_line(self, formatter=None):
         """parse the next line,
+        formatter: method as formatter to use a specific formatter w/o changing self._format
         :returns: str, or None if we are at EOF"""
         line = self._file.readline()
         if line:
+            if formatter:
+                # use specific formatter
+                return formatter(line)
+
+            # use instance formatter
             return self._format(line)
 
-    def parse_prev(self):
+    def parse_prev(self, formatter=None):
         """parse the previous line
+        formatter: method as formatter to use a specific formatter w/o changing self._format
         :returns str, or None if we are beginning of file"""
         pos = self.tell()
         _buffer = ''
@@ -314,8 +324,13 @@ class Tail:
                 number_lines += 1
                 # print(f'pos: {pos} number lines: {number_lines}')
                 if number_lines > 1:
-                    # self._file.seek(pos - 2)
-                    return self._format(_buffer[::-1])
+                    if formatter:
+                        return formatter(_buffer[:0:-1])
+
+                    # print(colored(_buffer, 'magenta'))
+                    # print('')
+                    # print(colored(_buffer[:0:-1]))
+                    return self._format(_buffer[:0:-1])
 
             else:
                 pos -= 1
@@ -323,6 +338,9 @@ class Tail:
                     _buffer += char
                 # print(f'pos: {pos} char: {char}')
                 self._file.seek(pos)
+
+    def search(self, key=None, value=None):
+        pass
 
 
 class Menu(Cmd):
@@ -358,20 +376,6 @@ class Menu(Cmd):
         print(f'formatter changed to: {self.tail.format_name}')
 
     do_fmt = do_format
-
-    def do_line(self, arg):
-        """get the next line"""
-        try:
-            entry = self.tail.parse_line()
-            if entry is None:
-                print(colored('\n    EOF\n', 'green'))
-            else:
-                print(entry)
-        except ParseError as p:
-            p.parser.display_log()
-            raise
-
-    do_l = do_line
 
     def do_next(self, arg):
         """get next line or, if at EOF then run follow command"""
