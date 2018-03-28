@@ -36,6 +36,11 @@ class KwogEntry:
         items.extend(list(self.format_namespace('g', self._global)))
         return ' '.join(items)
 
+    def __iter__(self):
+        for name, group in [('global', self._global), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
+            for key, value in group.items():
+                yield '.'.join([name, key]), value
+
     @staticmethod
     def escape_value(value):
         return value.replace('"', '""').replace('\n', '')

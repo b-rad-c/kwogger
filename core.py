@@ -3,6 +3,11 @@ import Kwogger
 from Kwogger import KwogEntry
 from cmd import Cmd
 from termcolor import colored
+from itertools import count
+
+
+class NotProvided:
+    pass
 
 
 class ParseError(Exception):
@@ -339,8 +344,42 @@ class Tail:
                 # print(f'pos: {pos} char: {char}')
                 self._file.seek(pos)
 
-    def search(self, key=None, value=None):
-        pass
+    def search(self, term, direction='down'):
+        """
+
+        :param key: filter results that have a key matching the supplied value,
+        if key=NotProvided key will not be filtered
+        :param value: filter results that have a value matching the supplied value,
+            if value=NotProvided value will not be filtered
+        :return:
+        """
+
+        """while True:
+            entry = self.parse_line(self._formatter_object)
+            if not entry:
+                break
+
+            for k, v in dict(entry).items():
+                # skip
+                if key is not NotProvided and key != k:
+                    continue
+                if value is not NotProvided and value != v:
+                    continue
+
+                yield self._format(entry)
+                break"""
+
+        parser = self.parse_prev if direction == 'up' else self.parse_line
+
+        for n in count():
+            entry = parser(self._formatter_raw)
+            if not entry:
+                # int to signal caller that we are at EOF & the number of lines searched
+                yield n
+                break
+
+            if term.lower() in entry.lower():
+                yield self._format(entry)
 
 
 class Menu(Cmd):
@@ -448,6 +487,41 @@ class Menu(Cmd):
         print(f'Pointer at tail of file: {self.tail.tell()}')
 
     do_t = do_tail
+
+    def do_search(self, arg):
+        self.run_search(arg, 'down')
+
+    do_s = do_search
+
+    def do_search_up(self, arg):
+        self.run_search(arg, 'up')
+
+    do_su = do_search_up
+
+    def do_search_head(self, arg):
+        self.do_head('')
+        self.run_search(arg, 'down')
+
+    do_sh = do_search_head
+
+    def run_search(self, term, direction):
+        name = 'BOF' if direction == 'up' else 'EOF'
+
+        if term:
+            # get entry
+            try:
+                for n, entry in enumerate(self.tail.search(term, direction)):
+                    if isinstance(entry, int):
+                        print(colored(f'\n\t{name} | tell: {self.tail.tell()} | lines searched: {entry} | lines matched: {n}\n', 'white'))
+                        break
+                    print(entry)
+
+            except ParseError as p:
+                p.parser.display_log()
+                raise
+
+        else:
+            print('*** No search term provided')
 
     def do_tell(self, arg):
         """return the pointer of the file handle"""
