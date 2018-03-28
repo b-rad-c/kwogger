@@ -164,7 +164,7 @@ class Parser:
         return str(value)
 
 
-class Tail:
+class KwogFileIO:
 
     def __init__(self, path):
         self.path = path
@@ -257,30 +257,7 @@ class Tail:
                 # print(f'pos: {pos} char: {char}')
                 self._file.seek(pos)
 
-    def search(self, term, direction='down'):
-        """
-
-        :param key: filter results that have a key matching the supplied value,
-        if key=NotProvided key will not be filtered
-        :param value: filter results that have a value matching the supplied value,
-            if value=NotProvided value will not be filtered
-        :return:
-        """
-
-        """while True:
-            entry = self.parse_line(self._formatter_object)
-            if not entry:
-                break
-
-            for k, v in dict(entry).items():
-                # skip
-                if key is not NotProvided and key != k:
-                    continue
-                if value is not NotProvided and value != v:
-                    continue
-
-                yield self._format(entry)
-                break"""
+    def search(self, term, direction, case_sensitive):
 
         parser = self.parse_prev if direction == 'up' else self.parse_line
 
@@ -291,7 +268,7 @@ class Tail:
                 yield n
                 break
 
-            if entry.raw.lower() in entry.raw.lower():
+            if entry.filter_by_term(term, case_sensitive):
                 yield entry
 
 
@@ -364,6 +341,16 @@ class KwogEntry:
             raise
 
     #
+    # filtering
+    #
+
+    def filter_by_term(self, term, case_sensitive=False):
+        if case_sensitive:
+            return term in self.raw
+
+        return term.lower() in self.raw.lower()
+
+    #
     # formatters
     #
 
@@ -428,7 +415,7 @@ class Menu(Cmd):
 
     def __init__(self, path):
         self.path, self.size, self.exists = path, None, None
-        self.tail = Tail(self.path)
+        self.io = KwogFileIO(self.path)
         self.format = self.DEFAULT_FORMAT
         super().__init__()
 
@@ -443,7 +430,7 @@ class Menu(Cmd):
         print(f'path:      {self.path}')
         print(f'exists:    {self.exists}')
         print(f'size:      {self.size}')
-        print(f'pointer:   {self.tail.tell()}')
+        print(f'pointer:   {self.io.tell()}')
 
     def do_format(self, arg):
         """set formatter of Tail object, ('raw', 'data', 'basic', 'default'), supply no argument for default"""
@@ -461,7 +448,7 @@ class Menu(Cmd):
 
         # get entry
         try:
-            entry = self.tail.parse_line()
+            entry = self.io.parse_line()
 
         except ParseError as p:
             p.parser.display_log()
@@ -477,7 +464,7 @@ class Menu(Cmd):
 
     def do_prev(self, arg):
         try:
-            entry = self.tail.parse_prev()
+            entry = self.io.parse_prev()
         except ParseError as p:
             p.parser.display_log()
             raise
@@ -507,7 +494,7 @@ class Menu(Cmd):
         print(colored('... following ...', 'green'))
 
         try:
-            for entry in self.tail.follow():
+            for entry in self.io.follow():
                 print(entry.format(self.format))
         except ParseError as p:
             p.parser.display_log()
@@ -518,42 +505,49 @@ class Menu(Cmd):
     def do_head(self, arg):
         """seek to head of file"""
         print(f'Pointer reset to 0')
-        self.tail.seek_head()
+        self.io.seek_head()
 
     do_h = do_head
 
     def do_tail(self, arg):
         """seek to tail of file"""
-        self.tail.seek_tail()
-        print(f'Pointer at tail of file: {self.tail.tell()}')
+        self.io.seek_tail()
+        print(f'Pointer at tail of file: {self.io.tell()}')
 
     do_t = do_tail
 
     def do_search(self, arg):
-        self.run_search(arg, 'down')
+        self.run_search(arg, 'down', False)
 
     do_s = do_search
 
+    def do_search_sensitive(self, arg):
+        """search with case sensitivity"""
+        self.run_search(arg, 'down', True)
+
+    do_ss = do_search_sensitive
+
     def do_search_up(self, arg):
-        self.run_search(arg, 'up')
+        self.run_search(arg, 'up', False)
 
     do_su = do_search_up
 
     def do_search_head(self, arg):
         self.do_head('')
-        self.run_search(arg, 'down')
+        self.run_search(arg, 'down', False)
 
     do_sh = do_search_head
 
-    def run_search(self, term, direction):
+    def run_search(self, term, direction, case_sensitive):
         name = 'BOF' if direction == 'up' else 'EOF'
 
         if term:
             # get entry
             try:
-                for n, entry in enumerate(self.tail.search(term, direction)):
+                for n, entry in enumerate(self.io.search(term, direction, case_sensitive)):
                     if isinstance(entry, int):
-                        print(colored(f'\n\t{name} | tell: {self.tail.tell()} | lines searched: {entry} | lines matched: {n}\n', 'white'))
+                        print(colored(
+                            f'\n\t{name} | tell: {self.io.tell()} | lines searched: {entry} | lines matched: {n}\n', 'white'))
                         break
                     print(entry.format(self.format))
 
@@ -566,7 +560,7 @@ class Menu(Cmd):
 
     def do_tell(self, arg):
         """return the pointer of the file handle"""
-        print(f'Pointer at {self.tail.tell()}')
+        print(f'Pointer at {self.io.tell()}')
 
     def do_q(self, arg):
         """Quits the program."""
