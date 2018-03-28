@@ -2,6 +2,7 @@ import logging
 from logging import Formatter, Logger
 import datetime
 from collections import OrderedDict
+from Kwogger.core import KwogEntry
 
 
 class Kwogger(Logger):
@@ -12,55 +13,6 @@ class Kwogger(Logger):
 
 
 logging.setLoggerClass(Kwogger)
-
-
-class KwogEntry:
-
-    def __init__(self, _global=None, source=None, entry=None, exc=None):
-        self._global, self.source, self.entry, self.exc = _global, source, entry, exc
-
-    def __str__(self):
-        """line break between namespaces
-        items = ' '.join(list(self.format_namespace('s', self.source))) + '\n'
-        items += ' '.join(list(self.format_namespace('e', self.entry))) + '\n'
-        if self.exc:
-            items += ' '.join(list(self.format_namespace('exc', self.exc))) + '\n'
-        items += ' '.join(list(self.format_namespace('g', self._global))) + '\n'
-        return items"""
-
-        items = list(self.format_namespace('s', self.source))
-        items.extend(list(self.format_namespace('e', self.entry)))
-        if self.exc:
-            items.extend(list(self.format_namespace('exc', self.exc)))
-
-        items.extend(list(self.format_namespace('g', self._global)))
-        return ' '.join(items)
-
-    def __iter__(self):
-        for name, group in [('global', self._global), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
-            for key, value in group.items():
-                yield '.'.join([name, key]), value
-
-    @staticmethod
-    def escape_value(value):
-        return value.replace('"', '""').replace('\n', '')
-
-    def format_value(self, value):
-        if value is None:
-            return 'None'
-
-        if isinstance(value, (bool, float, int)):
-            return str(value)
-
-        return '"' + self.escape_value(str(value)) + '"'
-
-    def format_namespace(self, parent, dictionary):
-        for key, value in dictionary.items():
-
-            # this is written to only go one level into lists/dicts, this is a logging library not a datastore
-            # sub lists/dicts will be converted to a string
-
-            yield '{}.{}={}'.format(parent, key, self.format_value(value))
 
 
 class KwoggerFormatter(Formatter):

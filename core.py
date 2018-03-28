@@ -1,6 +1,5 @@
 import os
 import Kwogger
-from Kwogger import KwogEntry
 from cmd import Cmd
 from termcolor import colored
 from itertools import count
@@ -164,16 +163,10 @@ class Parser:
         self.append_log('  > value: default')
         return str(value)
 
-    def entry(self):
-        return KwogEntry(self.data.get('g', {}), self.data.get('s', {}), self.data.get('e', {}), self.data.get('exc', {}))
-
 
 class Tail:
 
     def __init__(self, path):
-        self._format = None
-        self.format_name = ''
-        self.set_formatter('default')
         self.path = path
         self._file = open(path, 'r')
 
@@ -207,78 +200,6 @@ class Tail:
         self.close()
 
     #
-    # line formatting
-    #
-
-    def set_formatter(self, formatter):
-        try:
-            self._format = getattr(self, f'_formatter_{formatter}')
-            self.format_name = formatter
-
-        except AttributeError:
-            raise ValueError(f'Unknown formatter: {formatter}')
-
-    def _formatter_raw(self, line):
-        return line
-
-    def _formatter_data(self, line):
-        return str(Parser(line))
-
-    def _formatter_object(self, line):
-        return Parser(line)
-
-    def _formatter_basic(self, line):
-        entry = Parser(line).entry()
-        string = f'source: {entry.source}\n'
-        string += f'entry: {entry.entry}\n'
-        if entry.exc != {}:
-            string += f'exc: {entry.exc}\n'
-        if entry._global != {}:
-            string += f'global: {entry._global}\n'
-
-        return string
-
-    def _formatter_default(self, line):
-        entry = Parser(line).entry()
-
-        level = entry.source["level"][1:-1]
-
-        #
-        # format source line
-        #
-
-        string = f's: {entry.source["time"][1:-1]} {level}'
-        string += f' {entry.source["path"][1:-1]} func: {entry.source["func"][1:-1]} line: {entry.source["lineno"]}'
-
-        #
-        # format entry
-        #
-
-        if entry.entry:
-            string += f'\ne: '
-            for key, value in entry.entry.items():
-                string += f'{key}={value}\t'
-
-        #
-        # format exception
-        #
-
-        if entry.exc:
-            string += f'\nexc: {entry.exc["class"]} {entry.exc["msg"]}\n\tstack: {entry.exc["msg"]}'
-
-        #
-        # format global
-        #
-
-        if entry._global:
-            string += f'\ng: '
-            if entry._global != {}:
-                for key, value in entry.entry.items():
-                    string += f'{key}={value}'
-
-        return colored(string + '\n', Kwogger.get_level_color(level))
-
-    #
     # methods for getting data
     #
 
@@ -292,25 +213,20 @@ class Tail:
                 line = self._file.readline()
 
                 if line:
-                    yield self._format(line)
+                    yield KwogEntry.parse(line)
 
         except KeyboardInterrupt:
             pass
 
-    def parse_line(self, formatter=None):
+    def parse_line(self):
         """parse the next line,
         formatter: method as formatter to use a specific formatter w/o changing self._format
         :returns: str, or None if we are at EOF"""
         line = self._file.readline()
         if line:
-            if formatter:
-                # use specific formatter
-                return formatter(line)
+            return KwogEntry.parse(line)
 
-            # use instance formatter
-            return self._format(line)
-
-    def parse_prev(self, formatter=None):
+    def parse_prev(self):
         """parse the previous line
         formatter: method as formatter to use a specific formatter w/o changing self._format
         :returns str, or None if we are beginning of file"""
@@ -329,13 +245,10 @@ class Tail:
                 number_lines += 1
                 # print(f'pos: {pos} number lines: {number_lines}')
                 if number_lines > 1:
-                    if formatter:
-                        return formatter(_buffer[:0:-1])
-
                     # print(colored(_buffer, 'magenta'))
                     # print('')
                     # print(colored(_buffer[:0:-1]))
-                    return self._format(_buffer[:0:-1])
+                    return KwogEntry.parse(_buffer[:0:-1])
 
             else:
                 pos -= 1
@@ -372,21 +285,151 @@ class Tail:
         parser = self.parse_prev if direction == 'up' else self.parse_line
 
         for n in count():
-            entry = parser(self._formatter_raw)
+            entry = parser()
             if not entry:
                 # int to signal caller that we are at EOF & the number of lines searched
                 yield n
                 break
 
-            if term.lower() in entry.lower():
-                yield self._format(entry)
+            if entry.raw.lower() in entry.raw.lower():
+                yield entry
+
+
+class KwogEntry:
+
+    def __init__(self, _global=None, source=None, entry=None, exc=None, raw=None):
+        self._global, self.source, self.entry, self.exc, self.raw,  = _global, source, entry, exc, raw
+
+    def __str__(self):
+        """line break between namespaces
+        items = ' '.join(list(self.format_namespace('s', self.source))) + '\n'
+        items += ' '.join(list(self.format_namespace('e', self.entry))) + '\n'
+        if self.exc:
+            items += ' '.join(list(self.format_namespace('exc', self.exc))) + '\n'
+        items += ' '.join(list(self.format_namespace('g', self._global))) + '\n'
+        return items"""
+
+        items = list(self.format_namespace('s', self.source))
+        items.extend(list(self.format_namespace('e', self.entry)))
+        if self.exc:
+            items.extend(list(self.format_namespace('exc', self.exc)))
+
+        items.extend(list(self.format_namespace('g', self._global)))
+        return ' '.join(items)
+
+    def __iter__(self):
+        for name, group in [('global', self._global), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
+            for key, value in group.items():
+                yield '.'.join([name, key]), value
+
+    @classmethod
+    def parse(cls, line):
+        p = Parser(line)
+        return cls(p.data.get('g', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
+
+    @staticmethod
+    def escape_value(value):
+        return value.replace('"', '""').replace('\n', '')
+
+    def format_value(self, value):
+        if value is None:
+            return 'None'
+
+        if isinstance(value, (bool, float, int)):
+            return str(value)
+
+        return '"' + self.escape_value(str(value)) + '"'
+
+    def format_namespace(self, parent, dictionary):
+        for key, value in dictionary.items():
+
+            # this is written to only go one level into lists/dicts, this is a logging library not a datastore
+            # sub lists/dicts will be converted to a string
+
+            yield '{}.{}={}'.format(parent, key, self.format_value(value))
+
+    def format(self, formatter):
+        try:
+            _method = getattr(self, f'_formatter_{formatter}')
+
+        except AttributeError:
+            raise ValueError(f'No formatter named: {formatter}')
+
+        try:
+            return _method()
+        except KeyError:
+            print('***')
+            print(str(self))
+            print('***')
+            raise
+
+    #
+    # formatters
+    #
+
+    def _formatter_raw(self):
+        return self.raw
+
+    def _formatter_data(self):
+        return str(dict(self))
+
+    def _formatter_basic(self):
+        string = f'source: {self.source}\n'
+        string += f'entry: {self.entry}\n'
+        if self.exc != {}:
+            string += f'exc: {self.exc}\n'
+        if self._global != {}:
+            string += f'global: {self._global}\n'
+
+        return string
+
+    def _formatter_default(self):
+        level = self.source["level"][1:-1]
+
+        #
+        # format source line
+        #
+
+        string = f's: {self.source["time"][1:-1]} {level}'
+        string += f' {self.source["path"][1:-1]} func: {self.source["func"][1:-1]} line: {self.source["lineno"]}'
+
+        #
+        # format entry
+        #
+
+        if self.entry:
+            string += f'\ne: '
+            for key, value in self.entry.items():
+                string += f'{key}={value}\t'
+
+        #
+        # format exception
+        #
+
+        if self.exc:
+            string += f'\nexc: {self.exc["class"]} {self.exc["msg"]}\n\tstack: {self.exc["msg"]}'
+
+        #
+        # format global
+        #
+
+        if self._global:
+            string += f'\ng: '
+            if self._global != {}:
+                for key, value in self.entry.items():
+                    string += f'{key}={value}'
+
+        return colored(string + '\n', Kwogger.get_level_color(level))
 
 
 class Menu(Cmd):
 
+    DEFAULT_FORMAT = 'default'
+
     def __init__(self, path):
         self.path, self.size, self.exists = path, None, None
         self.tail = Tail(self.path)
+        self.format = self.DEFAULT_FORMAT
         super().__init__()
 
     def preloop(self):
@@ -405,14 +448,11 @@ class Menu(Cmd):
     def do_format(self, arg):
         """set formatter of Tail object, ('raw', 'data', 'basic', 'default'), supply no argument for default"""
         if arg:
-            try:
-                self.tail.set_formatter(arg)
-            except ValueError:
-                print(f'*** Unknown formatter: "{arg}"')
+            self.format = arg
         else:
-            self.tail.set_formatter('default')
+            self.format(self.DEFAULT_FORMAT)
 
-        print(f'formatter changed to: {self.tail.format_name}')
+        print(f'formatter changed to: {self.format}')
 
     do_fmt = do_format
 
@@ -428,11 +468,10 @@ class Menu(Cmd):
             raise
 
         if entry is None:
-            print(colored('... following ...', 'green'))
             self.do_follow('')
 
         else:
-            print(entry)
+            print(entry.format(self.format))
 
     do_n = do_next
 
@@ -446,7 +485,7 @@ class Menu(Cmd):
         if entry is None:
             print(colored('\n    BEGINNING OF FILE\n', 'green'))
         else:
-            print(entry)
+            print(entry.format(self.format))
 
     do_p = do_prev
 
@@ -465,9 +504,11 @@ class Menu(Cmd):
 
     def do_follow(self, arg):
         """seek to tail then follow supplied file, supply formatter as raw, basic (default formatter: basic)"""
+        print(colored('... following ...', 'green'))
+
         try:
             for entry in self.tail.follow():
-                print(entry)
+                print(entry.format(self.format))
         except ParseError as p:
             p.parser.display_log()
             raise
@@ -514,7 +555,7 @@ class Menu(Cmd):
                     if isinstance(entry, int):
                         print(colored(f'\n\t{name} | tell: {self.tail.tell()} | lines searched: {entry} | lines matched: {n}\n', 'white'))
                         break
-                    print(entry)
+                    print(entry.format(self.format))
 
             except ParseError as p:
                 p.parser.display_log()

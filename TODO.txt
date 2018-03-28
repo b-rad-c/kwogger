@@ -1,3 +1,3 @@
-+ Tail.parse_line should yield Entry objects, format methods should either be on KwogEntry or separate KwogFormat class
++ parse_prev throws ParseError if at EOF
 + add support for multiple serialization formats; pickle and json
 + create context manager to allow the menu to close the log file if there is an uncaught exception
