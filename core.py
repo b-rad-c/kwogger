@@ -2,10 +2,14 @@ import os
 import Kwogger
 from cmd import Cmd
 from termcolor import colored
-from itertools import count
+import itertools
 
 
-class NotProvided:
+"""class NotProvided:
+    pass"""
+
+
+class KeyExists:
     pass
 
 
@@ -44,6 +48,7 @@ class Parser:
         print('=' * 10 + ' END KWOGGER PARSER LOG ' + '=' * 10)
 
     def append_log(self, msg):
+        """this log is used to debug parser"""
         self.log.append(msg)
 
     def parse(self):
@@ -129,6 +134,12 @@ class Parser:
     def _format_value(self, value):
         self.append_log('** _format_value()')
 
+        if value == '.':
+            """used in searching logs, if this value is searched for all objects with any value this key
+            will be returned"""
+            self.append_log('  > value: KeyExists')
+            return KeyExists
+
         if value == 'None':
             self.append_log('  > value: None')
             return None
@@ -158,7 +169,20 @@ class Parser:
 
         if value[0:1] == '"' and value[-1:] == '"':
             self.append_log(f'  > value: str | len: {len(value)}')
-            return value.replace('""', '"')
+            return value[1:-1].replace('""', '"')
+
+
+
+
+            #
+            #
+            # original return
+            #
+            #
+
+
+
+            # return value.replace('""', '"')
 
         self.append_log('  > value: default')
         return str(value)
@@ -261,15 +285,24 @@ class KwogFileIO:
 
         parser = self.parse_prev if direction == 'up' else self.parse_line
 
-        for n in count():
+        for n in itertools.count():
             entry = parser()
             if not entry:
                 # int to signal caller that we are at EOF & the number of lines searched
                 yield n
                 break
 
-            if entry.filter_by_term(term, case_sensitive):
+            if entry.match_full_text(term, case_sensitive):
                 yield entry
+
+    def search_obj(self, query_string):
+        try:
+            entry = KwogEntry.parse(query_string)
+            print(entry.format('data'))
+            print('-----')
+            print(entry.format('basic'))
+        except ParseError as p:
+            print(f'Parser error: {p}')
 
 
 class KwogEntry:
@@ -296,8 +329,12 @@ class KwogEntry:
 
     def __iter__(self):
         for name, group in [('global', self._global), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
-            for key, value in group.items():
-                yield '.'.join([name, key]), value
+            try:
+                for key, value in group.items():
+                    yield '.'.join([name, key]), value
+            except AttributeError:
+                if group is KeyExists:
+                    yield name, KeyExists
 
     @classmethod
     def parse(cls, line):
@@ -341,14 +378,56 @@ class KwogEntry:
             raise
 
     #
-    # filtering
+    # match methods
     #
 
-    def filter_by_term(self, term, case_sensitive=False):
+    def match_full_text(self, term, case_sensitive=False):
         if case_sensitive:
             return term in self.raw
 
         return term.lower() in self.raw.lower()
+
+    def match_entry_object(self, match_object, case_sensitive=False):
+
+        #
+        # loop through items in match object (query params)
+        #
+
+        for name, params in dict(match_object).items():
+            data = getattr(self, name)
+
+            # if key exists continue
+            if params is KeyExists:
+                if data is None:
+                    return False
+
+            # match on provided dictionary params
+            elif isinstance(params, dict):
+                for key, value in params.items():
+                    try:
+                        # key exists, continue
+                        if value is KeyExists and key in data:
+                            continue
+
+                        # match case insensitive strings
+                        elif isinstance(value, str) and not case_sensitive:
+                            if data[key].lower != value.lower():
+                                return False
+
+                        # match all other values
+                        else:
+                            if data[key] != value:
+                                return False
+
+                    # key not matched, return false
+                    except KeyError:
+                        return False
+
+            else:
+                raise ValueError('Value must be dict or KeyExists')
+
+        # passed all filters, return true
+        return True
 
     #
     # formatters
@@ -371,14 +450,14 @@ class KwogEntry:
         return string
 
     def _formatter_default(self):
-        level = self.source["level"][1:-1]
+        level = self.source["level"]
 
         #
         # format source line
         #
 
-        string = f's: {self.source["time"][1:-1]} {level}'
-        string += f' {self.source["path"][1:-1]} func: {self.source["func"][1:-1]} line: {self.source["lineno"]}'
+        string = f's: {self.source["time"]} {level}'
+        string += f' {self.source["path"]} func: {self.source["func"]} line: {self.source["lineno"]}'
 
         #
         # format entry
@@ -413,14 +492,18 @@ class Menu(Cmd):
 
     DEFAULT_FORMAT = 'default'
 
-    def __init__(self, path):
+    def __init__(self, path, initial_cmd=None):
         self.path, self.size, self.exists = path, None, None
         self.io = KwogFileIO(self.path)
         self.format = self.DEFAULT_FORMAT
+        self.initial_cmd = initial_cmd
         super().__init__()
 
     def preloop(self):
         self.do_status('')
+        print(self.initial_cmd)
+        if self.initial_cmd is not None:
+            getattr(self, f'do_{self.initial_cmd}')('')
 
     def do_status(self, arg):
         """display info about supplied path"""
@@ -520,6 +603,12 @@ class Menu(Cmd):
         self.run_search(arg, 'down', False)
 
     do_s = do_search
+
+    def do_search_object(self, arg):
+        print('input: """{}"""\n\n'.format(arg))
+        self.io.search_obj(arg)
+
+    do_so = do_search_object
 
     def do_search_sensitive(self, arg):
         """search with case sensitivity"""

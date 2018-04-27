@@ -11,6 +11,15 @@ class Kwogger(Logger):
     def _log(self, level, msg, args, exc_info=None, stack_info=True, **kwargs):
         super()._log(level, msg, args, exc_info, extra={'params': kwargs}, stack_info=stack_info)
 
+    def trace(self, msg, *args, **kwargs):
+        """
+
+        for backward compatibility with legacy version, map trace to notset
+
+
+        """
+        self._log(NOTSET, msg, args, **kwargs)
+
 
 logging.setLoggerClass(Kwogger)
 
@@ -101,6 +110,18 @@ def get_level(level):
         raise KeyError(f'Level not found: {level}')
 
 
+def level_value(level):
+    """Convenience function to return integer regardless of input
+    :param level (int/str) return corresponding integer"""
+    return get_level(level)[0]
+
+
+def level_name(level):
+    """Convenience function to return string regardless of input
+    :param level (int/str) return corresponding level name as str"""
+    return get_level(level)[1]
+
+
 def get_level_color(level):
     level_int = get_level(level)[0]
 
@@ -116,9 +137,10 @@ def get_level_color(level):
     return 'red'
 
 
-def log(log_file, name, **_global):
+def log(log_file, name, level=DEBUG, **_global):
+    print(log_file, name, level)
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(level_value(level))
 
     handler = logging.FileHandler(log_file)
     handler.setFormatter(KwoggerFormatter(name, **_global))
