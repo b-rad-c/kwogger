@@ -138,12 +138,13 @@ def get_level_color(level):
 
 
 def log(log_file, name, level=DEBUG, **_global):
-    print(log_file, name, level)
+    lvl = level_value(level)
     logger = logging.getLogger(name)
-    logger.setLevel(level_value(level))
+    logger.setLevel(lvl)
 
     handler = logging.FileHandler(log_file)
     handler.setFormatter(KwoggerFormatter(name, **_global))
+    handler.setLevel(lvl)
     logger.addHandler(handler)
 
     return logger
