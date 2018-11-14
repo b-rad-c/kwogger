@@ -5,10 +5,6 @@ from termcolor import colored
 import itertools
 
 
-"""class NotProvided:
-    pass"""
-
-
 class KeyExists:
     pass
 
@@ -457,7 +453,7 @@ class KwogEntry:
         #
 
         string = f's: {self.source["time"]} {level}'
-        string += f' {self.source["path"]} func: {self.source["func"]} line: {self.source["lineno"]}'
+        string += f' {self.string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
 
         #
         # format entry
@@ -486,6 +482,18 @@ class KwogEntry:
                     string += f'{key}={value}'
 
         return colored(string + '\n', Kwogger.get_level_color(level))
+
+    #
+    # misc
+    #
+
+    @staticmethod
+    def string_trunc(string):
+        length = 50
+        if len(string) > length:
+            return string[0:15] + '...' + string[-35:]
+        else:
+            return string
 
 
 class Menu(Cmd):

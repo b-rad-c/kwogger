@@ -11,13 +11,11 @@ class Kwogger(Logger):
     def _log(self, level, msg, args, exc_info=None, stack_info=True, **kwargs):
         super()._log(level, msg, args, exc_info, extra={'params': kwargs}, stack_info=stack_info)
 
+    def error(self, msg, exc_info=None, **kwargs):
+        self._log(ERROR, msg, [], exc_info=exc_info, **kwargs)
+
     def trace(self, msg, *args, **kwargs):
-        """
-
-        for backward compatibility with legacy version, map trace to notset
-
-
-        """
+        # for backward compatibility with legacy version, map trace to notset
         self._log(NOTSET, msg, args, **kwargs)
 
 
