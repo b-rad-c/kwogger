@@ -341,14 +341,15 @@ class KwogEntry:
     def escape_value(value):
         return value.replace('"', '""').replace('\n', '')
 
-    def format_value(self, value):
+    @classmethod
+    def format_value(cls, value):
         if value is None:
             return 'None'
 
         if isinstance(value, (bool, float, int)):
             return str(value)
 
-        return '"' + self.escape_value(str(value)) + '"'
+        return '"' + cls.escape_value(str(value)) + '"'
 
     def format_namespace(self, parent, dictionary):
         for key, value in dictionary.items():
@@ -452,7 +453,7 @@ class KwogEntry:
         # format source line
         #
 
-        string = f's: {self.source["time"]} {level}'
+        string = f's: {self.source["time"]} {level} {self.source["log"]}'
         string += f' {self.string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
 
         #
@@ -469,7 +470,11 @@ class KwogEntry:
         #
 
         if self.exc:
-            string += f'\nexc: {self.exc["class"]} {self.exc["msg"]}\n\tstack: {self.exc["msg"]}'
+            string += f'\nexc: {self.exc["class"]}: {self.exc["msg"]}\ntraceback:\n'
+            tb = self.exc['traceback'][3:-3].split('\\n')
+            tb[0] = tb[0].strip()
+            for line in tb:
+                string += '\t' + line.replace("', '  ", '') + '\n'
 
         #
         # format global
@@ -478,8 +483,8 @@ class KwogEntry:
         if self._global:
             string += f'\ng: '
             if self._global != {}:
-                for key, value in self.entry.items():
-                    string += f'{key}={value}'
+                for key, value in self._global.items():
+                    string += f'{key}={value}\t'
 
         return colored(string + '\n', Kwogger.get_level_color(level))
 

@@ -3,6 +3,6 @@ import Kwogger
 
 logger = Kwogger.log('myapp.log', 'submodule')
 
-logger.warn('I am a submodule!')
+logger.warning('I am a submodule!')
 
 logger.info('Submodule stuff happening here')

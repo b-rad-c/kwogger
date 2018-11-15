@@ -1,3 +1,6 @@
+[11-15-18 12:15]
+    - fix exception, traceback logging and display
+
 [3-28-18 01:32]
 - core.py
     - rename Tail class to KwogFileIO

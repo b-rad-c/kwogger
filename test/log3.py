@@ -18,7 +18,7 @@ logger.debug('CHECK_ORDER_A', d=4, e=5, f=6, a=1, b=2, c=3)
 
 logger.info('PROCESS_A_START', foo='ABC', baz='DEF', bar='GHI')
 
-logger.warn('WARNING_TYPE_A', x=1, y=2)
+logger.warning('WARNING_TYPE_A', x=1, y=2)
 
 try:
     int('a')
@@ -33,7 +33,7 @@ logger.info('TEST_TYPES', a=None, b=True, c=1, d=1.5, e=datetime.datetime.now())
 logger.info('TEST_ESCAPING', value1='LOOK AT THIS ,', value2='LOOK AT THAT "', value3='AND " THIS, THING',
             value4='AND "" THIS, THING', value5='AND """ THIS, THING')
 
-if False:
+if True:
     logger.info('TESTING_LIST', information=[
         None,
         True,

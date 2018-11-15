@@ -3,20 +3,20 @@ from logging import Formatter, Logger
 import datetime
 from collections import OrderedDict
 from Kwogger.core import KwogEntry
+import traceback
 
 
 class Kwogger(Logger):
+
     DBG = False
 
     def _log(self, level, msg, args, exc_info=None, stack_info=True, **kwargs):
         super()._log(level, msg, args, exc_info, extra={'params': kwargs}, stack_info=stack_info)
 
-    def error(self, msg, exc_info=None, **kwargs):
-        self._log(ERROR, msg, [], exc_info=exc_info, **kwargs)
-
     def trace(self, msg, *args, **kwargs):
         # for backward compatibility with legacy version, map trace to notset
-        self._log(NOTSET, msg, args, **kwargs)
+        # self._log(NOTSET, msg, args, **kwargs)
+        pass
 
 
 logging.setLoggerClass(Kwogger)
@@ -51,7 +51,7 @@ class KwoggerFormatter(Formatter):
             exc = OrderedDict()
             exc['class'] = KwogEntry.escape_value(record.exc_info[0].__name__)
             exc['msg'] = KwogEntry.escape_value(str(record.exc_info[1]))
-            exc['stack'] = KwogEntry.escape_value(self.formatStack(record.stack_info))\
+            exc['traceback'] = KwogEntry.format_value(traceback.format_tb(record.exc_info[2]))
 
         else:
             exc = None
