@@ -23,6 +23,33 @@ class KwoggerAdapter(logging.LoggerAdapter):
     """
     def process(self, msg, kwargs):
         return '[%s] %s' % (self.extra['connid'], msg), kwargs
+    
+    def debug(self, *args, **kwargs):
+        super().debug(*args, **kwargs)
+    
+    def debug_exc(self, *args, **kwargs):
+        super().debug(*args, exc_info=True, **kwargs)
+    
+    def info(self, *args, **kwargs):
+        super().info(*args, **kwargs)
+    
+    def info_exc(self, *args, **kwargs):
+        super().info(*args, exc_info=True, **kwargs)
+    
+    def warning(self, *args, **kwargs):
+        super().warning(*args, **kwargs)
+    
+    def warning_exc(self, *args, **kwargs):
+        super().warning(*args, exc_info=True, **kwargs)
+    
+    def error(self, *args, **kwargs):
+        super().error(*args, **kwargs)
+    
+    def error_exc(self, *args, **kwargs):
+        super().error(*args, exc_info=True, **kwargs)
+
+    def exception(self, *args, **kwargs):
+        super().error(*args, exc_info=True, **kwargs)
 
 
 def configure(log_file='logs/example.log'):
