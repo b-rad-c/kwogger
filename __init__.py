@@ -2,7 +2,11 @@ import logging
 import uuid
 import time
 import os
-from dataclasses import dataclass
+import datetime
+import traceback
+from collections import OrderedDict
+from Kwogger.core import KwogTimer, KwogEntry
+
 
 CRITICAL = logging.CRITICAL
 FATAL = logging.FATAL
@@ -13,59 +17,102 @@ INFO = logging.INFO
 DEBUG = logging.DEBUG
 NOTSET = logging.NOTSET
 
+_level_to_name = {
+    CRITICAL: 'CRITICAL',
+    ERROR: 'ERROR',
+    WARNING: 'WARNING',
+    INFO: 'INFO',
+    DEBUG: 'DEBUG',
+    NOTSET: 'NOTSET',
+}
 
-@dataclass
-class KwoggerTimer:
-    name: str
-    start_time: int = time.time()
-    end_time: int = 0
+_name_to_level = {
+    'CRITICAL': CRITICAL,
+    'FATAL': FATAL,
+    'ERROR': ERROR,
+    'WARN': WARNING,
+    'WARNING': WARNING,
+    'INFO': INFO,
+    'DEBUG': DEBUG,
+    'NOTSET': NOTSET,
+}
 
-    def __post_init__(self):
-        self.start_time = time.time()
 
-    def elapsed_time(self):
-        if self.end_time == 0:
-                return time.time() - self.start_time
-        else:
-            return self.end_time - self.start_time
+def get_level(level):
+    """this function will return a tuple of (int, str) representing the integer value of level, level may be
+    the integer or string representation of the level"""
 
-    def stop(self):
-        self.end_time = time.time()
+    try:
+        level_int = _name_to_level[level]
+        return level_int, level
+    except KeyError:
+        pass
 
-    def __iter__(self):
-        yield 'timer_name', self.name
-        yield 'start_time', self.start_time
-        yield 'elapsed_time', self.elapsed_time()
-        if self.end_time != 0:
-            yield 'end_time', self.end_time
+    try:
+        level_nm = _level_to_name[level]
+        return level, level_nm
+
+    except KeyError:
+        raise KeyError(f'Level not found: {level}')
+
+
+def level_value(level):
+    """Convenience function to return integer regardless of input
+    :param level (int/str) return corresponding integer"""
+    return get_level(level)[0]
+
+
+def level_name(level):
+    """Convenience function to return string regardless of input
+    :param level (int/str) return corresponding level name as str"""
+    return get_level(level)[1]
+
+
+def get_level_color(level):
+    level_int = get_level(level)[0]
+
+    if level_int < INFO:
+        return 'white'
+
+    if level_int < WARNING:
+        return 'green'
+
+    if level_int < ERROR:
+        return 'yellow'
+
+    return 'red'
 
 
 class KwogFormatter(logging.Formatter):
-    def formatException(self, exc_info):
-        """
-        Format an exception so that it prints on a single line.
-        """
-        result = super(KwogFormatter, self).formatException(exc_info)
-        return repr(result)  # or format into one line however you want to
 
     def format(self, record):
-        s = super(KwogFormatter, self).format(record)
-        # import pdb; pdb.set_trace()
-        try:
-            for key, value in record.args['entry'].items():
-                s += f'e.{key}={value} '
 
-            for key, value in record.args['global_'].items():
-                s += f'g.{key}={value} '
-        except Exception:
-            pass
+        # rewrite as literal, leave like this for quick testing OrderedDict
+        source = OrderedDict()
+        source['time'] = datetime.datetime.fromtimestamp(record.created)
+        source['log'] = record.module
+        source['level'] = record.levelname
+        source['path'] = record.pathname
+        source['func'] = record.funcName
+        source['lineno'] = record.lineno
 
-        if record.exc_text:
-            s = s.replace('\n', '') + '|'
-        return s
+        entry = OrderedDict()
+        entry['msg'] = record.msg
+        entry.update(record.args['entry'])
+
+        if record.exc_info:
+            exc = OrderedDict()
+            exc['class'] = KwogEntry.escape_value(record.exc_info[0].__name__)
+            exc['msg'] = KwogEntry.escape_value(str(record.exc_info[1]))
+            exc['traceback'] = KwogEntry.format_value(traceback.format_tb(record.exc_info[2]))
+
+        else:
+            exc = None
+
+        return str(KwogEntry(record.args['global_'], source, entry, exc))
 
 
-class KwoggerAdapter(logging.LoggerAdapter):
+class KwogAdapter(logging.LoggerAdapter):
     """
     This example adapter expects the passed in dict-like object to have a
     'connid' key, whose value in brackets is prepended to the log message.
@@ -141,7 +188,7 @@ class KwoggerAdapter(logging.LoggerAdapter):
         self.log(ERROR, msg, *args, exc_info=True, **kwargs)
 
     def timer_start(self, name, **kwargs):
-        self.timers[name] = KwoggerTimer(name)
+        self.timers[name] = KwogTimer(name)
         kwargs.update(dict(self.timers[name]))
         self.log(INFO, 'TIMER_STARTED', **kwargs)
 
@@ -163,7 +210,7 @@ class KwoggerAdapter(logging.LoggerAdapter):
 
 def configure(log_file='logs/example.log'):
     fh = logging.FileHandler(log_file, 'w')
-    f = KwogFormatter('%(asctime)s | %(levelname)s | %(message)s | ', '%d/%m/%Y %H:%M:%S')
+    f = KwogFormatter()
     fh.setFormatter(f)
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)

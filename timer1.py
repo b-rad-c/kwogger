@@ -7,7 +7,7 @@ import time
 
 def main():
     Kwogger.configure()
-    logger = Kwogger.KwoggerAdapter(logging.getLogger(__name__), dict(connid=str(randint(1000, 9999))))
+    logger = Kwogger.KwogAdapter(logging.getLogger(__name__), dict(connid=str(randint(1000, 9999))))
 
     logger.timer_start('hello', value=1)
 
