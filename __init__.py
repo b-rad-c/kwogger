@@ -119,7 +119,7 @@ class KwogAdapter(logging.LoggerAdapter):
     'connid' key, whose value in brackets is prepended to the log message.
     """
 
-    def __init__(self, logger, global_):
+    def __init__(self, logger, global_=None):
         """
         Initialize the adapter with a logger and a dict-like object which
         provides contextual information. This constructor signature allows
@@ -129,7 +129,7 @@ class KwogAdapter(logging.LoggerAdapter):
         adapter = LoggerAdapter(someLogger, dict(p1=v1, p2="v2"))
         """
         self.logger = logger
-        self.global_ = global_
+        self.global_ = {} if global_ is None else global_
         self.timers = {}
 
     def generate_id(self, **kwargs):
@@ -153,45 +153,80 @@ class KwogAdapter(logging.LoggerAdapter):
     def log(self, level, msg, *args, **kwargs):
         if self.isEnabledFor(level):
             msg, args, kwargs = self.process(msg, args, kwargs)
-            self.logger.log(level, msg, *args, **kwargs)
+            self.logger._log(level, msg, *args, **kwargs)
+
+    def log_exc(self, level, msg, *args, **kwargs):
+        if self.isEnabledFor(level):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            kwargs['exc_info'] = True
+            self.logger._log(level, msg, *args, **kwargs)
     
     def debug(self, msg, *args, **kwargs):
-        self.log(DEBUG, msg, *args, **kwargs)
+        if self.isEnabledFor(DEBUG):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(DEBUG, msg, *args, **kwargs)
     
     def debug_exc(self, msg, *args, **kwargs):
-        self.log(DEBUG, msg, *args, exc_info=True, **kwargs)
+        if self.isEnabledFor(DEBUG):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            kwargs['exc_info'] = True
+            self.logger._log(DEBUG, msg, *args, **kwargs)
     
     def info(self, msg, *args, **kwargs):
-        self.log(INFO, msg, *args, **kwargs)
+        if self.isEnabledFor(INFO):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(INFO, msg, *args, **kwargs)
     
     def info_exc(self, msg, *args, **kwargs):
-        self.log(INFO, msg, *args, exc_info=True, **kwargs)
+        if self.isEnabledFor(INFO):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            kwargs['exc_info'] = True
+            self.logger._log(INFO, msg, *args, **kwargs)
     
     def warning(self, msg, *args, **kwargs):
-        self.log(WARNING, msg, *args, **kwargs)
+        if self.isEnabledFor(WARNING):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(WARNING, msg, *args, **kwargs)
     
     def warning_exc(self, msg, *args, **kwargs):
-        self.log(WARNING, msg, *args, exc_info=True, **kwargs)
+        if self.isEnabledFor(WARNING):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            kwargs['exc_info'] = True
+            self.logger._log(WARNING, msg, *args, **kwargs)
     
     def error(self, msg, *args, **kwargs):
-        self.log(ERROR, msg, *args, **kwargs)
+        if self.isEnabledFor(ERROR):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(ERROR, msg, *args, **kwargs)
     
     def error_exc(self, msg, *args, **kwargs):
-        self.log(ERROR, msg, *args, exc_info=True, **kwargs)
+        if self.isEnabledFor(ERROR):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            kwargs['exc_info'] = True
+            self.logger._log(ERROR, msg, *args, **kwargs)
 
     def critical(self, msg, *args, **kwargs):
-        self.log(CRITICAL, msg, *args, **kwargs)
+        if self.isEnabledFor(CRITICAL):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(CRITICAL, msg, *args, **kwargs)
 
     def critical_exc(self, msg, *args, **kwargs):
-        self.log(CRITICAL, msg, *args, exc_info=True, **kwargs)
+        if self.isEnabledFor(CRITICAL):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            kwargs['exc_info'] = True
+            self.logger._log(CRITICAL, msg, *args, **kwargs)
 
     def exception(self, msg, *args, **kwargs):
-        self.log(ERROR, msg, *args, exc_info=True, **kwargs)
+        if self.isEnabledFor(ERROR):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(ERROR, msg, *args, **kwargs)
 
     def timer_start(self, name, **kwargs):
         self.timers[name] = KwogTimer(name)
         kwargs.update(dict(self.timers[name]))
-        self.log(INFO, 'TIMER_STARTED', **kwargs)
+        msg = 'TIMER_STARTED'
+        msg, args, kwargs = self.process(msg, [], kwargs)
+        self.logger._log(INFO, msg, *args, **kwargs)
 
     def timer_stop(self, name, **kwargs):
         try:
@@ -199,20 +234,31 @@ class KwogAdapter(logging.LoggerAdapter):
         except KeyError:
             raise ValueError(f'No timer named: {name}')
         kwargs.update(dict(self.timers[name]))
-        self.log(INFO, 'TIMER_STOPPED', **kwargs)
+        msg = 'TIMER_STOPPED'
+        msg, args, kwargs = self.process(msg, [], kwargs)
+        self.logger._log(INFO, msg, *args, **kwargs)
 
     def timer_checkpoint(self, name, **kwargs):
         try:
             kwargs.update(dict(self.timers[name]))
         except KeyError:
             raise ValueError(f'No timer named: {name}')
-        self.log(INFO, 'TIMER_CHECKPOINT', **kwargs)
+        msg = 'TIMER_CHECKPOINT'
+        msg, args, kwargs = self.process(msg, [], kwargs)
+        self.logger._log(INFO, msg, *args, **kwargs)
 
 
-def configure(log_file='logs/example.log'):
+def configure(**kwargs):
+    log_file = kwargs.get('log_file', 'logs/example.log')
+    level = kwargs.get('level', logging.DEBUG)
+
     fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)    # 5 MB
     f = KwogFormatter()
     fh.setFormatter(f)
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(level)
     root.addHandler(fh)
+
+
+def log(name, **global_):
+    return KwogAdapter(logging.getLogger(name), global_)

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-import logging
 import Kwogger
-from random import randint
 
 
 def main():
     Kwogger.configure()
-    logger = Kwogger.KwogAdapter(logging.getLogger(__name__), dict(connid=randint(1000, 9999)))
+    logger = Kwogger.log(__name__, namespace='test-value')
+
     id_ = logger.generate_id(field='req_id')
     print('got an id', id_)
+
+    logger.log(Kwogger.INFO, 'dynamic log entry', a=101)
 
     logger.debug('This message should go to the log file', key1='hello', key2='world', key3=1)
 
@@ -25,6 +26,7 @@ def main():
     try:
         1 / 0
     except ZeroDivisionError:
+        logger.log_exc(Kwogger.INFO, 'do not do this!!!')
         logger.debug_exc('do not do this!')
         logger.info_exc('do not do this!')
         logger.warning_exc('do not do this!')
