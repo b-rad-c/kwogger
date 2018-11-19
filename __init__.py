@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import uuid
 import time
 import os
@@ -209,7 +210,7 @@ class KwogAdapter(logging.LoggerAdapter):
 
 
 def configure(log_file='logs/example.log'):
-    fh = logging.FileHandler(log_file)
+    fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)    # 5 MB
     f = KwogFormatter()
     fh.setFormatter(f)
     root = logging.getLogger()
