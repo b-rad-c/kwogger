@@ -2,6 +2,7 @@ import logging
 import uuid
 import time
 import os
+from dataclasses import dataclass
 
 CRITICAL = logging.CRITICAL
 FATAL = logging.FATAL
@@ -11,6 +12,32 @@ WARN = logging.WARN
 INFO = logging.INFO
 DEBUG = logging.DEBUG
 NOTSET = logging.NOTSET
+
+
+@dataclass
+class KwoggerTimer:
+    name: str
+    start_time: int = time.time()
+    end_time: int = 0
+
+    def __post_init__(self):
+        self.start_time = time.time()
+
+    def elapsed_time(self):
+        if self.end_time == 0:
+                return time.time() - self.start_time
+        else:
+            return self.end_time - self.start_time
+
+    def stop(self):
+        self.end_time = time.time()
+
+    def __iter__(self):
+        yield 'timer_name', self.name
+        yield 'start_time', self.start_time
+        yield 'elapsed_time', self.elapsed_time()
+        if self.end_time != 0:
+            yield 'end_time', self.end_time
 
 
 class KwogFormatter(logging.Formatter):
@@ -55,6 +82,7 @@ class KwoggerAdapter(logging.LoggerAdapter):
         """
         self.logger = logger
         self.global_ = global_
+        self.timers = {}
 
     def generate_id(self, **kwargs):
         namespace = kwargs.get('namespace', uuid.uuid4())
@@ -111,6 +139,26 @@ class KwoggerAdapter(logging.LoggerAdapter):
 
     def exception(self, msg, *args, **kwargs):
         self.log(ERROR, msg, *args, exc_info=True, **kwargs)
+
+    def timer_start(self, name, **kwargs):
+        self.timers[name] = KwoggerTimer(name)
+        kwargs.update(dict(self.timers[name]))
+        self.log(INFO, 'TIMER_STARTED', **kwargs)
+
+    def timer_stop(self, name, **kwargs):
+        try:
+            self.timers[name].stop()
+        except KeyError:
+            raise ValueError(f'No timer named: {name}')
+        kwargs.update(dict(self.timers[name]))
+        self.log(INFO, 'TIMER_STOPPED', **kwargs)
+
+    def timer_checkpoint(self, name, **kwargs):
+        try:
+            kwargs.update(dict(self.timers[name]))
+        except KeyError:
+            raise ValueError(f'No timer named: {name}')
+        self.log(INFO, 'TIMER_CHECKPOINT', **kwargs)
 
 
 def configure(log_file='logs/example.log'):
