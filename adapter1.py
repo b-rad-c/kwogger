@@ -6,7 +6,7 @@ from random import randint
 
 def main():
     Kwogger.configure()
-    logger = Kwogger.KwogAdapter(logging.getLogger(__name__), dict(connid=str(randint(1000, 9999))))
+    logger = Kwogger.KwogAdapter(logging.getLogger(__name__), dict(connid=randint(1000, 9999)))
     id_ = logger.generate_id(field='req_id')
     print('got an id', id_)
 

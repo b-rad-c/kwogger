@@ -252,7 +252,6 @@ class KwogFileIO:
     #
 
     def follow(self):
-
         try:
             self.seek_tail()
 

@@ -209,7 +209,7 @@ class KwogAdapter(logging.LoggerAdapter):
 
 
 def configure(log_file='logs/example.log'):
-    fh = logging.FileHandler(log_file, 'w')
+    fh = logging.FileHandler(log_file)
     f = KwogFormatter()
     fh.setFormatter(f)
     root = logging.getLogger()
