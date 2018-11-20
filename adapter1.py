@@ -3,7 +3,7 @@ import Kwogger
 
 
 def main():
-    Kwogger.configure()
+    Kwogger.configure(__name__)
     logger = Kwogger.log(__name__, namespace='test-value')
 
     id_ = logger.generate_id(field='req_id')

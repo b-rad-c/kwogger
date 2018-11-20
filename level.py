@@ -3,7 +3,7 @@ import Kwogger
 
 
 def main():
-    Kwogger.configure(level=Kwogger.WARNING)
+    Kwogger.configure(__name__, level=Kwogger.WARNING)
     logger = Kwogger.log(__name__)
 
     logger.debug('This message should NOT go to the log file', key1='hello', key2='world', key3=1)

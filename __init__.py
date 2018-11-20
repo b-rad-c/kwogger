@@ -160,6 +160,17 @@ class KwogAdapter(logging.LoggerAdapter):
             msg, args, kwargs = self.process(msg, args, kwargs)
             kwargs['exc_info'] = True
             self.logger._log(level, msg, *args, **kwargs)
+
+    def trace(self, msg, *args, **kwargs):
+        if self.isEnabledFor(NOTSET):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(NOTSET, msg, *args, **kwargs)
+
+    def trace_exc(self, msg, *args, **kwargs):
+        if self.isEnabledFor(NOTSET):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            kwargs['exc_info'] = True
+            self.logger._log(NOTSET, msg, *args, **kwargs)
     
     def debug(self, msg, *args, **kwargs):
         if self.isEnabledFor(DEBUG):
@@ -248,14 +259,11 @@ class KwogAdapter(logging.LoggerAdapter):
         self.logger._log(INFO, msg, *args, **kwargs)
 
 
-def configure(**kwargs):
-    log_file = kwargs.get('log_file', 'logs/example.log')
-    level = kwargs.get('level', logging.DEBUG)
-
+def configure(name, log_file='logs/example.log', level=logging.DEBUG):
     fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)    # 5 MB
     f = KwogFormatter()
     fh.setFormatter(f)
-    root = logging.getLogger()
+    root = logging.getLogger(name)
     root.setLevel(level)
     root.addHandler(fh)
 
