@@ -263,9 +263,9 @@ def configure(name, log_file='logs/example.log', level=logging.DEBUG):
     fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)    # 5 MB
     f = KwogFormatter()
     fh.setFormatter(f)
-    root = logging.getLogger(name)
-    root.setLevel(level)
-    root.addHandler(fh)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(fh)
 
 
 def log(name, **global_):
