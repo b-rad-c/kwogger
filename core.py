@@ -1,12 +1,40 @@
 import os
 import Kwogger
+import itertools
+import time
 from cmd import Cmd
 from termcolor import colored
-import itertools
+from dataclasses import dataclass
 
 
 class KeyExists:
     pass
+
+
+@dataclass
+class KwogTimer:
+    name: str
+    start_time: int = time.time()
+    end_time: int = 0
+
+    def __post_init__(self):
+        self.start_time = time.time()
+
+    def elapsed_time(self):
+        if self.end_time == 0:
+                return time.time() - self.start_time
+        else:
+            return self.end_time - self.start_time
+
+    def stop(self):
+        self.end_time = time.time()
+
+    def __iter__(self):
+        yield 'timer_name', self.name
+        yield 'start_time', self.start_time
+        yield 'elapsed_time', self.elapsed_time()
+        if self.end_time != 0:
+            yield 'end_time', self.end_time
 
 
 class ParseError(Exception):
@@ -224,9 +252,7 @@ class KwogFileIO:
     #
 
     def follow(self):
-
         try:
-
             self.seek_tail()
 
             while True:
@@ -303,8 +329,8 @@ class KwogFileIO:
 
 class KwogEntry:
 
-    def __init__(self, _global=None, source=None, entry=None, exc=None, raw=None):
-        self._global, self.source, self.entry, self.exc, self.raw,  = _global, source, entry, exc, raw
+    def __init__(self, global_=None, source=None, entry=None, exc=None, raw=None):
+        self.global_, self.source, self.entry, self.exc, self.raw,  = global_, source, entry, exc, raw
 
     def __str__(self):
         """line break between namespaces
@@ -312,7 +338,7 @@ class KwogEntry:
         items += ' '.join(list(self.format_namespace('e', self.entry))) + '\n'
         if self.exc:
             items += ' '.join(list(self.format_namespace('exc', self.exc))) + '\n'
-        items += ' '.join(list(self.format_namespace('g', self._global))) + '\n'
+        items += ' '.join(list(self.format_namespace('g', self.global_))) + '\n'
         return items"""
 
         items = list(self.format_namespace('s', self.source))
@@ -320,11 +346,11 @@ class KwogEntry:
         if self.exc:
             items.extend(list(self.format_namespace('exc', self.exc)))
 
-        items.extend(list(self.format_namespace('g', self._global)))
+        items.extend(list(self.format_namespace('g', self.global_)))
         return ' '.join(items)
 
     def __iter__(self):
-        for name, group in [('global', self._global), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
+        for name, group in [('global', self.global_), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
             try:
                 for key, value in group.items():
                     yield '.'.join([name, key]), value
@@ -441,8 +467,8 @@ class KwogEntry:
         string += f'entry: {self.entry}\n'
         if self.exc != {}:
             string += f'exc: {self.exc}\n'
-        if self._global != {}:
-            string += f'global: {self._global}\n'
+        if self.global_ != {}:
+            string += f'global: {self.global_}\n'
 
         return string
 
@@ -480,10 +506,10 @@ class KwogEntry:
         # format global
         #
 
-        if self._global:
+        if self.global_:
             string += f'\ng: '
-            if self._global != {}:
-                for key, value in self._global.items():
+            if self.global_ != {}:
+                for key, value in self.global_.items():
                     string += f'{key}={value}\t'
 
         return colored(string + '\n', Kwogger.get_level_color(level))
@@ -496,7 +522,7 @@ class KwogEntry:
     def string_trunc(string):
         length = 50
         if len(string) > length:
-            return string[0:15] + '...' + string[-35:]
+            return string[0:15] + ' ... ' + string[-35:]
         else:
             return string
 
