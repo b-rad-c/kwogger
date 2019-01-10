@@ -1,5 +1,5 @@
 import os
-import Kwogger
+import kwogger
 import itertools
 import time
 from cmd import Cmd
@@ -512,7 +512,7 @@ class KwogEntry:
                 for key, value in self.global_.items():
                     string += f'{key}={value}\t'
 
-        return colored(string + '\n', Kwogger.get_level_color(level))
+        return colored(string + '\n', kwogger.get_level_color(level))
 
     #
     # misc
