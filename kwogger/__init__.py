@@ -6,7 +6,7 @@ import os
 import datetime
 import traceback
 from collections import OrderedDict
-from Kwogger.core import KwogTimer, KwogEntry
+from kwogger.core import KwogTimer, KwogEntry
 
 
 CRITICAL = logging.CRITICAL
