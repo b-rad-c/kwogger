@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-import Kwogger
+import kwogger
 from random import randint
 
 
 def main():
-    Kwogger.configure(__name__)
-    logger = Kwogger.log(__name__, connid=randint(1000, 9999))
+    kwogger.configure(__name__)
+    logger = kwogger.log(__name__, connid=randint(1000, 9999))
     logger.generate_id(field='req_id')
 
     noise = '1' * 250
+    print('Infinite loop to fill up log file and test automated rotation, press Ctrl+C to exit.')
     while True:
         logger.info('FILLING_LOG_FILE', noise=noise)
 

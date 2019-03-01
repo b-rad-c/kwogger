@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import Kwogger
+import kwogger
 import time
 
 
 def main():
-    Kwogger.configure(__name__)
-    logger = Kwogger.log(__name__)
+    kwogger.configure(__name__)
+    logger = kwogger.log(__name__)
 
     try:
         logger.timer_checkpoint('bad_timer')
