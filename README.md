@@ -1,4 +1,6 @@
 # Kwogger
+##### Requires Python 3.6+
+What can I say? I love f-strings.
 #### Structured logging in python
 _key word logger (kw-ogger)_
 
