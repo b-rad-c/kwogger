@@ -1,6 +1,6 @@
 # Kwogger
 ##### Requires Python 3.6+
-What can I say? I love f-strings.
+
 #### Structured logging in python
 _key word logger (kw-ogger)_
 
@@ -60,7 +60,9 @@ The CLI utility uses the 'termcolor' library to vary the color of each entry bas
     WARNING=yellow
     ERROR=red
     
-The tail utility also has searching capabilities, both as simple 'grep'ing a string and by matching key/value pair data.
+The tail utility also has searching capabilities
+    + simple search function equivalent to 'grep'ing each log entry as a line 
+    + advanced search by matching key/value pair data.
 
 Tail utility can be used by calling the module directly.
     
@@ -92,8 +94,8 @@ Helpful for timing long running processes to find bottle necks.
 
     time.sleep(1.5)
 
-    logger.timer_checkpoint('hello', processing=True
-                            )
+    logger.timer_checkpoint('hello', processing=True)
+
     time.sleep(1.5)
 
     logger.timer_stop('hello', complete=True)
