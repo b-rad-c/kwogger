@@ -259,13 +259,14 @@ class KwogAdapter(logging.LoggerAdapter):
         self.logger._log(INFO, msg, *args, **kwargs)
 
 
-def configure(name, log_file='logs/example.log', level=logging.DEBUG):
-    fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)    # 5 MB
+def configure(name, log_file='logs/example.log', level=logging.DEBUG, **global_):
+    fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)
     f = KwogFormatter()
     fh.setFormatter(f)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(fh)
+    return KwogAdapter(logger, global_)
 
 
 def log(name, **global_):

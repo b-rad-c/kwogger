@@ -1,8 +1,6 @@
 import os
 import kwogger
-import itertools
 import time
-from cmd import Cmd
 from termcolor import colored
 from dataclasses import dataclass
 
@@ -214,25 +212,37 @@ class Parser:
 
 class KwogFileIO:
 
-    def __init__(self, path):
+    def __init__(self, path, level=kwogger.DEBUG, seek='head'):
         self.path = path
+        self.level = level
         self._file = open(path, 'r')
+
+        if seek == 'head':
+            self.seek_head()
+        elif seek == 'tail':
+            self.seek_tail()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            entry = self.parse_line()
+            try:
+                if entry.level >= self.level:
+                    return entry
+            except AttributeError:
+                raise StopIteration
 
     #
     # file handler
     #
-
-    def tell(self):
-        return self._file.tell()
 
     def seek_head(self):
         self._file.seek(0)
 
     def seek_tail(self):
         self._file.seek(0, os.SEEK_END)
-
-    def seek_line(self, lineno):
-        print(f'Seek function not created: {lineno}')
 
     def close(self):
         self._file.close()
@@ -259,7 +269,9 @@ class KwogFileIO:
                 line = self._file.readline()
 
                 if line:
-                    yield KwogEntry.parse(line)
+                    entry = KwogEntry.parse(line)
+                    if entry.level >= self.level:
+                        yield entry
 
         except KeyboardInterrupt:
             pass
@@ -271,60 +283,6 @@ class KwogFileIO:
         line = self._file.readline()
         if line:
             return KwogEntry.parse(line)
-
-    def parse_prev(self):
-        """parse the previous line
-        formatter: method as formatter to use a specific formatter w/o changing self._format
-        :returns str, or None if we are beginning of file"""
-        pos = self.tell()
-        _buffer = ''
-        number_lines = 0
-        # print(f'init tell: {pos}')
-
-        while True:
-            if pos == 0:
-                # print(' :: return None')
-                return None
-
-            char = self._file.read(1)
-            if char == '\n':
-                number_lines += 1
-                # print(f'pos: {pos} number lines: {number_lines}')
-                if number_lines > 1:
-                    # print(colored(_buffer, 'magenta'))
-                    # print('')
-                    # print(colored(_buffer[:0:-1]))
-                    return KwogEntry.parse(_buffer[:0:-1])
-
-            else:
-                pos -= 1
-                if number_lines > 0:
-                    _buffer += char
-                # print(f'pos: {pos} char: {char}')
-                self._file.seek(pos)
-
-    def search(self, term, direction, case_sensitive):
-
-        parser = self.parse_prev if direction == 'up' else self.parse_line
-
-        for n in itertools.count():
-            entry = parser()
-            if not entry:
-                # int to signal caller that we are at EOF & the number of lines searched
-                yield n
-                break
-
-            if entry.match_full_text(term, case_sensitive):
-                yield entry
-
-    def search_obj(self, query_string):
-        try:
-            entry = KwogEntry.parse(query_string)
-            print(entry.format('data'))
-            print('-----')
-            print(entry.format('basic'))
-        except ParseError as p:
-            print(f'Parser error: {p}')
 
 
 class KwogEntry:
@@ -401,58 +359,6 @@ class KwogEntry:
             raise
 
     #
-    # match methods
-    #
-
-    def match_full_text(self, term, case_sensitive=False):
-        if case_sensitive:
-            return term in self.raw
-
-        return term.lower() in self.raw.lower()
-
-    def match_entry_object(self, match_object, case_sensitive=False):
-
-        #
-        # loop through items in match object (query params)
-        #
-
-        for name, params in dict(match_object).items():
-            data = getattr(self, name)
-
-            # if key exists continue
-            if params is KeyExists:
-                if data is None:
-                    return False
-
-            # match on provided dictionary params
-            elif isinstance(params, dict):
-                for key, value in params.items():
-                    try:
-                        # key exists, continue
-                        if value is KeyExists and key in data:
-                            continue
-
-                        # match case insensitive strings
-                        elif isinstance(value, str) and not case_sensitive:
-                            if data[key].lower != value.lower():
-                                return False
-
-                        # match all other values
-                        else:
-                            if data[key] != value:
-                                return False
-
-                    # key not matched, return false
-                    except KeyError:
-                        return False
-
-            else:
-                raise ValueError('Value must be dict or KeyExists')
-
-        # passed all filters, return true
-        return True
-
-    #
     # formatters
     #
 
@@ -526,171 +432,10 @@ class KwogEntry:
         else:
             return string
 
+    @property
+    def level(self):
+        return kwogger.level_value(self.source['level'])
 
-class Menu(Cmd):
-
-    DEFAULT_FORMAT = 'default'
-
-    def __init__(self, path, initial_cmd=None):
-        self.path, self.size, self.exists = path, None, None
-        self.io = KwogFileIO(self.path)
-        self.format = self.DEFAULT_FORMAT
-        self.initial_cmd = initial_cmd
-        super().__init__()
-
-    def preloop(self):
-        self.do_status('')
-        print(self.initial_cmd)
-        if self.initial_cmd is not None:
-            getattr(self, f'do_{self.initial_cmd}')('')
-
-    def do_status(self, arg):
-        """display info about supplied path"""
-        self.size = os.path.getsize(self.path)
-        self.exists = os.path.exists(self.path)
-
-        print(f'path:      {self.path}')
-        print(f'exists:    {self.exists}')
-        print(f'size:      {self.size}')
-        print(f'pointer:   {self.io.tell()}')
-
-    def do_format(self, arg):
-        """set formatter of Tail object, ('raw', 'data', 'basic', 'default'), supply no argument for default"""
-        if arg:
-            self.format = arg
-        else:
-            self.format(self.DEFAULT_FORMAT)
-
-        print(f'formatter changed to: {self.format}')
-
-    do_fmt = do_format
-
-    def do_next(self, arg):
-        """get next line or, if at EOF then run follow command"""
-
-        # get entry
-        try:
-            entry = self.io.parse_line()
-
-        except ParseError as p:
-            p.parser.display_log()
-            raise
-
-        if entry is None:
-            self.do_follow('')
-
-        else:
-            print(entry.format(self.format))
-
-    do_n = do_next
-
-    def do_prev(self, arg):
-        try:
-            entry = self.io.parse_prev()
-        except ParseError as p:
-            p.parser.display_log()
-            raise
-
-        if entry is None:
-            print(colored('\n    BEGINNING OF FILE\n', 'green'))
-        else:
-            print(entry.format(self.format))
-
-    do_p = do_prev
-
-    def do_jump(self, arg):
-        try:
-            count = int(arg)
-        except ValueError:
-            count = 5
-
-        _method = self.do_next if count > 0 else self.do_prev
-
-        for n in range(abs(count)):
-            _method('')
-
-    do_j = do_jump
-
-    def do_follow(self, arg):
-        """seek to tail then follow supplied file, supply formatter as raw, basic (default formatter: basic)"""
-        print(colored('... following ...', 'green'))
-
-        try:
-            for entry in self.io.follow():
-                print(entry.format(self.format))
-        except ParseError as p:
-            p.parser.display_log()
-            raise
-
-    do_f = do_follow
-
-    def do_head(self, arg):
-        """seek to head of file"""
-        print(f'Pointer reset to 0')
-        self.io.seek_head()
-
-    do_h = do_head
-
-    def do_tail(self, arg):
-        """seek to tail of file"""
-        self.io.seek_tail()
-        print(f'Pointer at tail of file: {self.io.tell()}')
-
-    do_t = do_tail
-
-    def do_search(self, arg):
-        self.run_search(arg, 'down', False)
-
-    do_s = do_search
-
-    def do_search_object(self, arg):
-        print('input: """{}"""\n\n'.format(arg))
-        self.io.search_obj(arg)
-
-    do_so = do_search_object
-
-    def do_search_sensitive(self, arg):
-        """search with case sensitivity"""
-        self.run_search(arg, 'down', True)
-
-    do_ss = do_search_sensitive
-
-    def do_search_up(self, arg):
-        self.run_search(arg, 'up', False)
-
-    do_su = do_search_up
-
-    def do_search_head(self, arg):
-        self.do_head('')
-        self.run_search(arg, 'down', False)
-
-    do_sh = do_search_head
-
-    def run_search(self, term, direction, case_sensitive):
-        name = 'BOF' if direction == 'up' else 'EOF'
-
-        if term:
-            # get entry
-            try:
-                for n, entry in enumerate(self.io.search(term, direction, case_sensitive)):
-                    if isinstance(entry, int):
-                        print(colored(
-                            f'\n\t{name} | tell: {self.io.tell()} | lines searched: {entry} | lines matched: {n}\n', 'white'))
-                        break
-                    print(entry.format(self.format))
-
-            except ParseError as p:
-                p.parser.display_log()
-                raise
-
-        else:
-            print('*** No search term provided')
-
-    def do_tell(self, arg):
-        """return the pointer of the file handle"""
-        print(f'Pointer at {self.io.tell()}')
-
-    def do_q(self, arg):
-        """Quits the program."""
-        print('Goodbye.')
-        return True
+    @property
+    def level_name(self):
+        return self.source['level']
