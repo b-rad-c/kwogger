@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import kwogger
-from kwogger.core import KwogFileIO
 
 LOG_FILE = './parse.log'
 
@@ -26,7 +25,7 @@ def generate_log():
 
 
 def parse():
-    with KwogFileIO(LOG_FILE) as log:
+    with kwogger.KwogFile(LOG_FILE) as log:
         for entry in log:
             breakpoint()
             print(type(entry))

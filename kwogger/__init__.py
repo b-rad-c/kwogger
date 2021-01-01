@@ -556,15 +556,10 @@ class KwogEntry:
     def __init__(self, global_=None, source=None, entry=None, exc=None, raw=None):
         self.global_, self.source, self.entry, self.exc, self.raw,  = global_, source, entry, exc, raw
 
-    def __str__(self):
-        """line break between namespaces
-        items = ' '.join(list(self.format_namespace('s', self.source))) + '\n'
-        items += ' '.join(list(self.format_namespace('e', self.entry))) + '\n'
-        if self.exc:
-            items += ' '.join(list(self.format_namespace('exc', self.exc))) + '\n'
-        items += ' '.join(list(self.format_namespace('g', self.global_))) + '\n'
-        return items"""
+    def __repr__(self):
+        return f'<KwogEntry | {self.level_name} | exception={self.handling_exception}>'
 
+    def __str__(self):
         items = list(self.format_namespace('s', self.source))
         items.extend(list(self.format_namespace('e', self.entry)))
         if self.exc:
@@ -705,3 +700,7 @@ class KwogEntry:
     @property
     def level_name(self):
         return self.source['level']
+
+    @property
+    def handling_exception(self):
+        return self.exc != {}
