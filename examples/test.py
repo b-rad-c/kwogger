@@ -3,7 +3,7 @@ import kwogger
 
 LOG_FILE = './test.log'
 
-kwogger.configure('parse-sample', LOG_FILE, kwogger.DEBUG)
+kwogger.rotate_by_size('parse-sample', LOG_FILE, kwogger.DEBUG)
 logger = kwogger.log('parse-sample')
 
 logger.info('HELLO.WORLD')

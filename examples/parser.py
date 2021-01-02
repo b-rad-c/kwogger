@@ -5,7 +5,7 @@ LOG_FILE = './parse.log'
 
 
 def generate_log():
-    log = kwogger.configure('parse-sample', LOG_FILE, kwogger.DEBUG)
+    log = kwogger.rotate_by_size('parse-sample', LOG_FILE, kwogger.DEBUG)
 
     # basic
     log.debug("hmm... this doesn't look right")

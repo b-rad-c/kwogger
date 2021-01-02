@@ -21,7 +21,7 @@ class KwoggerTests(unittest.TestCase):
         # write log entries
         #
 
-        log = kwogger.configure('unittest.test_base_logging_methods', self.LOG_PATH, is_unit_test=True)
+        log = kwogger.rotate_by_size('unittest.test_base_logging_methods', self.LOG_PATH, is_unit_test=True)
         test_id = log.generate_id('test_id')
 
         log.info('TEST_TYPES', null=None, bool_t=True, bool_f=False, integer=1, float=1.5, string='hello', other=os)
@@ -84,7 +84,7 @@ class KwoggerTests(unittest.TestCase):
                 self.assertGreaterEqual(line.level, kwogger.WARNING)
 
     def test_timer(self):
-        log = kwogger.configure('unittest.test_timer', self.LOG_PATH)
+        log = kwogger.rotate_by_size('unittest.test_timer', self.LOG_PATH)
         log.timer_start('TIMER_A')
         time.sleep(.3)
 
@@ -96,6 +96,27 @@ class KwoggerTests(unittest.TestCase):
         log.timer_stop('TIMER_B')
 
         log.logger.handlers[0].close()
+
+        with kwogger.KwogFile(self.LOG_PATH) as parser:
+            for n, line in enumerate(parser):
+                self.assertEqual(line.level, kwogger.INFO)
+                if n < 2:
+                    self.assertEqual(line.entry['msg'], 'TIMER_STARTED', msg='incorrect start msg')
+                    self.assertIsInstance(line.entry['start_time'], float, msg='incorrect start_time value')
+                    self.assertIsNone(line.entry.get('elapsed_time'), msg='start entry has elapsed time')
+                    self.assertIsNone(line.entry.get('end_time'), msg='start entry has end time')
+
+                elif n == 2:
+                    self.assertEqual(line.entry['msg'], 'TIMER_CHECKPOINT', msg='incorrect checkpoint msg')
+                    self.assertIsInstance(line.entry['start_time'], float, msg='incorrect start_time value')
+                    self.assertIsInstance(line.entry['elapsed_time'], float, msg='incorrect elapsed_time value')
+                    self.assertIsNone(line.entry.get('end_time'), msg='start entry has end time')
+
+                else:
+                    self.assertEqual(line.entry['msg'], 'TIMER_STOPPED', msg='incorrect checkpoint msg')
+                    self.assertIsInstance(line.entry['start_time'], float, msg='incorrect start_time value')
+                    self.assertIsInstance(line.entry['elapsed_time'], float, msg='incorrect elapsed_time value')
+                    self.assertIsInstance(line.entry['end_time'], float, msg='incorrect end_time value')
 
 
 if __name__ == '__main__':

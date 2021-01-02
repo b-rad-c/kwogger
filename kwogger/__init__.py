@@ -1,5 +1,5 @@
 import logging
-import logging.handlers
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import uuid
 import time
 import os
@@ -23,25 +23,9 @@ INFO = logging.INFO
 DEBUG = logging.DEBUG
 NOTSET = logging.NOTSET
 
-_level_to_name = {
-    CRITICAL: 'CRITICAL',
-    ERROR: 'ERROR',
-    WARNING: 'WARNING',
-    INFO: 'INFO',
-    DEBUG: 'DEBUG',
-    NOTSET: 'NOTSET',
-}
+_levelToName = logging._levelToName
 
-_name_to_level = {
-    'CRITICAL': CRITICAL,
-    'FATAL': FATAL,
-    'ERROR': ERROR,
-    'WARN': WARNING,
-    'WARNING': WARNING,
-    'INFO': INFO,
-    'DEBUG': DEBUG,
-    'NOTSET': NOTSET,
-}
+_nameToLevel = logging._nameToLevel
 
 
 def get_level(level):
@@ -49,13 +33,13 @@ def get_level(level):
     the integer or string representation of the level"""
 
     try:
-        level_int = _name_to_level[level]
+        level_int = _nameToLevel[level]
         return level_int, level
     except KeyError:
         pass
 
     try:
-        level_nm = _level_to_name[level]
+        level_nm = _levelToName[level]
         return level, level_nm
 
     except KeyError:
@@ -79,25 +63,17 @@ def get_level_color(level):
 
     if level_int < INFO:
         return 'white'
-
     if level_int < WARNING:
         return 'green'
-
     if level_int < ERROR:
         return 'yellow'
 
     return 'red'
 
 
-def configure(name, log_file='logs/example.log', level=logging.DEBUG, **context):
-    fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)
-    f = KwogFormatter()
-    fh.setFormatter(f)
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.addHandler(fh)
-    return KwogAdapter(logger, context)
-
+#
+# logging subclasses
+#
 
 class KwogFormatter(logging.Formatter):
 
@@ -240,8 +216,9 @@ class KwogAdapter(logging.LoggerAdapter):
         del kwargs['elapsed_time']
         del kwargs['end_time']
 
-        msg, args, kwargs = self.process('TIMER_STARTED', [], kwargs)
-        self.logger._log(INFO, msg, *args, **kwargs)
+        if self.isEnabledFor(INFO):
+            msg, args, kwargs = self.process('TIMER_STARTED', [], kwargs)
+            self.logger._log(INFO, msg, *args, **kwargs)
 
     def timer_stop(self, name, **kwargs):
         try:
@@ -250,8 +227,9 @@ class KwogAdapter(logging.LoggerAdapter):
         except KeyError:
             raise ValueError(f'No timer named: {name}')
 
-        msg, args, kwargs = self.process('TIMER_STOPPED', [], kwargs)
-        self.logger._log(INFO, msg, *args, **kwargs)
+        if self.isEnabledFor(INFO):
+            msg, args, kwargs = self.process('TIMER_STOPPED', [], kwargs)
+            self.logger._log(INFO, msg, *args, **kwargs)
 
     def timer_checkpoint(self, name, **kwargs):
         try:
@@ -260,22 +238,183 @@ class KwogAdapter(logging.LoggerAdapter):
         except KeyError:
             raise ValueError(f'No timer named: {name}')
 
-        msg, args, kwargs = self.process('TIMER_CHECKPOINT', [], kwargs)
-        self.logger._log(INFO, msg, *args, **kwargs)
-
-
-
+        if self.isEnabledFor(INFO):
+            msg, args, kwargs = self.process('TIMER_CHECKPOINT', [], kwargs)
+            self.logger._log(INFO, msg, *args, **kwargs)
 
 
 #
+# initialize logger convenience functions
 #
+
+def rotate_by_size(name, path, level=DEBUG, max_bytes=5242880, backups=5, **context):
+    fh = RotatingFileHandler(path, maxBytes=max_bytes, backupCount=backups)
+    f = KwogFormatter()
+    fh.setFormatter(f)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(fh)
+    return KwogAdapter(logger, context)
+
+
+def rotate_by_time(name, path, level=DEBUG, when='midnight', interval=1, backups=5, utc=False, at_time=None, **context):
+    fh = TimedRotatingFileHandler(path, when=when, interval=interval, backupCount=backups, utc=utc, atTime=at_time)
+    f = KwogFormatter()
+    fh.setFormatter(f)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(fh)
+    return KwogAdapter(logger, context)
+
+
 #
-#
+# Kwogger classes
 #
 
 
-class KeyExists:
-    pass
+class KwogEntry:
+
+    def __init__(self, context=None, source=None, entry=None, exc=None, raw=None):
+        self.context, self.source, self.entry, self.exc, self.raw,  = context, source, entry, exc, raw
+
+    def __repr__(self):
+        return f'<KwogEntry | {self.level_name} | exception={self.handling_exception}>'
+
+    def __str__(self):
+        return self.format('log_file')
+
+    def __iter__(self):
+        for name, group in [('context', self.context), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
+            try:
+                for key, value in group.items():
+                    yield '.'.join([name, key]), value
+            except AttributeError:
+                if group is KeyExists:
+                    yield name, KeyExists
+
+    @classmethod
+    def parse(cls, line):
+        p = KwogParser(line)
+        return cls(p.data.get('c', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
+
+    #
+    # properties
+    #
+
+    @property
+    def level(self):
+        return level_value(self.source['level'])
+
+    @property
+    def level_name(self):
+        return self.source['level']
+
+    @property
+    def handling_exception(self):
+        return self.exc != {}
+
+    #
+    # formatting
+    #
+
+    def format(self, formatter):
+        try:
+            _method = getattr(self, f'_formatter_{formatter}')
+
+        except AttributeError:
+            raise ValueError(f'No formatter named: {formatter}')
+
+        try:
+            return _method()
+        except KeyError:
+            print('***')
+            print(str(self))
+            print('***')
+            raise
+
+    @classmethod
+    def format_value(cls, value):
+        if value is None:
+            return 'None'
+
+        if isinstance(value, (bool, float, int)):
+            return str(value)
+
+        return '"' + cls.escape_value(str(value)) + '"'
+
+    def format_namespace(self, parent, dictionary):
+        for key, value in dictionary.items():
+
+            # this is written to only go one level into lists/dicts, this is a logging library not a datastore
+            # sub lists/dicts will be converted to a string
+
+            yield '{}.{}={}'.format(parent, key, self.format_value(value))
+
+    @staticmethod
+    def string_trunc(string):
+        length = 50
+        if len(string) > length:
+            return string[0:15] + ' ... ' + string[-35:]
+        else:
+            return string
+
+    @staticmethod
+    def escape_value(value):
+        return value.replace('"', '""').replace('\n', '')
+
+    #
+    # formatters
+    #
+
+    def _formatter_log_file(self):
+        items = list(self.format_namespace('s', self.source))
+        items.extend(list(self.format_namespace('e', self.entry)))
+        if self.exc:
+            items.extend(list(self.format_namespace('exc', self.exc)))
+
+        items.extend(list(self.format_namespace('c', self.context)))
+        return ' '.join(items)
+
+    def _formatter_cli(self):
+
+        #
+        # format source line
+        #
+
+        string = f's: {self.source["time"]} {self.level_name} {self.source["log"]}'
+        string += f' {self.string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
+
+        #
+        # format entry
+        #
+
+        if self.entry:
+            string += f'\ne: '
+            for key, value in self.entry.items():
+                string += f'{key}={value}\t'
+
+        #
+        # format exception
+        #
+
+        if self.exc:
+            string += f'\nexc: {self.exc["class"]}: {self.exc["msg"]}\ntraceback:\n'
+            tb = self.exc['traceback'][3:-3].split('\\n')
+            tb[0] = tb[0].strip()
+            for line in tb:
+                string += '\t' + line.replace("', '  ", '') + '\n'
+
+        #
+        # format context
+        #
+
+        if self.context:
+            string += f'\nc: '
+            if self.context != {}:
+                for key, value in self.context.items():
+                    string += f'{key}={value}\t'
+
+        return colored(string + '\n', get_level_color(self.level_name))
 
 
 @dataclass
@@ -301,6 +440,14 @@ class KwogTimer:
             yield 'end_time', self.end_time
 
 
+#
+# parse and file io
+#
+
+class KeyExists:
+    pass
+
+
 class ParseError(Exception):
     def __init__(self, msg, parser=None):
         self.msg = msg
@@ -310,7 +457,7 @@ class ParseError(Exception):
         return str(self.msg)
 
 
-class Parser:
+class KwogParser:
 
     DBG = True
 
@@ -552,152 +699,3 @@ class KwogFile:
             return KwogEntry.parse(line)
 
 
-class KwogEntry:
-
-    def __init__(self, context=None, source=None, entry=None, exc=None, raw=None):
-        self.context, self.source, self.entry, self.exc, self.raw,  = context, source, entry, exc, raw
-
-    def __repr__(self):
-        return f'<KwogEntry | {self.level_name} | exception={self.handling_exception}>'
-
-    def __str__(self):
-        items = list(self.format_namespace('s', self.source))
-        items.extend(list(self.format_namespace('e', self.entry)))
-        if self.exc:
-            items.extend(list(self.format_namespace('exc', self.exc)))
-
-        items.extend(list(self.format_namespace('c', self.context)))
-        return ' '.join(items)
-
-    def __iter__(self):
-        for name, group in [('context', self.context), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
-            try:
-                for key, value in group.items():
-                    yield '.'.join([name, key]), value
-            except AttributeError:
-                if group is KeyExists:
-                    yield name, KeyExists
-
-    @classmethod
-    def parse(cls, line):
-        p = Parser(line)
-        return cls(p.data.get('c', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
-
-    @staticmethod
-    def escape_value(value):
-        return value.replace('"', '""').replace('\n', '')
-
-    @classmethod
-    def format_value(cls, value):
-        if value is None:
-            return 'None'
-
-        if isinstance(value, (bool, float, int)):
-            return str(value)
-
-        return '"' + cls.escape_value(str(value)) + '"'
-
-    def format_namespace(self, parent, dictionary):
-        for key, value in dictionary.items():
-
-            # this is written to only go one level into lists/dicts, this is a logging library not a datastore
-            # sub lists/dicts will be converted to a string
-
-            yield '{}.{}={}'.format(parent, key, self.format_value(value))
-
-    def format(self, formatter):
-        try:
-            _method = getattr(self, f'_formatter_{formatter}')
-
-        except AttributeError:
-            raise ValueError(f'No formatter named: {formatter}')
-
-        try:
-            return _method()
-        except KeyError:
-            print('***')
-            print(str(self))
-            print('***')
-            raise
-
-    #
-    # formatters
-    #
-
-    def _formatter_raw(self):
-        return self.raw
-
-    def _formatter_basic(self):
-        string = f'source: {self.source}\n'
-        string += f'entry: {self.entry}\n'
-        if self.exc != {}:
-            string += f'exc: {self.exc}\n'
-        if self.context != {}:
-            string += f'context: {self.context}\n'
-
-        return string
-
-    def _formatter_cli(self):
-
-        #
-        # format source line
-        #
-
-        string = f's: {self.source["time"]} {self.level_name} {self.source["log"]}'
-        string += f' {self.string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
-
-        #
-        # format entry
-        #
-
-        if self.entry:
-            string += f'\ne: '
-            for key, value in self.entry.items():
-                string += f'{key}={value}\t'
-
-        #
-        # format exception
-        #
-
-        if self.exc:
-            string += f'\nexc: {self.exc["class"]}: {self.exc["msg"]}\ntraceback:\n'
-            tb = self.exc['traceback'][3:-3].split('\\n')
-            tb[0] = tb[0].strip()
-            for line in tb:
-                string += '\t' + line.replace("', '  ", '') + '\n'
-
-        #
-        # format context
-        #
-
-        if self.context:
-            string += f'\nc: '
-            if self.context != {}:
-                for key, value in self.context.items():
-                    string += f'{key}={value}\t'
-
-        return colored(string + '\n', get_level_color(self.level_name))
-
-    #
-    # misc
-    #
-
-    @staticmethod
-    def string_trunc(string):
-        length = 50
-        if len(string) > length:
-            return string[0:15] + ' ... ' + string[-35:]
-        else:
-            return string
-
-    @property
-    def level(self):
-        return level_value(self.source['level'])
-
-    @property
-    def level_name(self):
-        return self.source['level']
-
-    @property
-    def handling_exception(self):
-        return self.exc != {}

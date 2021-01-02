@@ -2,7 +2,7 @@ import kwogger
 
 
 def main():
-    kwogger.configure(__name__)
+    kwogger.rotate_by_size(__name__)
     logger = kwogger.log(__name__)
 
     # basic

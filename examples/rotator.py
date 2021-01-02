@@ -4,7 +4,7 @@ from random import randint
 
 
 def main():
-    kwogger.configure(__name__)
+    kwogger.rotate_by_size(__name__)
     logger = kwogger.log(__name__, connid=randint(1000, 9999))
     logger.generate_id(field='req_id')
 

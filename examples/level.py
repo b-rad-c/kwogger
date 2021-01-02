@@ -3,7 +3,7 @@ import kwogger
 
 
 def main():
-    kwogger.configure(__name__, level=kwogger.WARNING)
+    kwogger.rotate_by_size(__name__, level=kwogger.WARNING)
     logger = kwogger.log(__name__)
 
     logger.debug('This message should NOT go to the log file', key1='hello', key2='world', key3=1)
