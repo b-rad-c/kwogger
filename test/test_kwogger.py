@@ -26,6 +26,8 @@ class KwoggerTests(unittest.TestCase):
 
         log.info('TEST_TYPES', null=None, bool_t=True, bool_f=False, integer=1, float=1.5, string='hello', other=os)
 
+        log.log(kwogger.DEBUG, 'TEST_DYNAMIC_LEVEL', hello='world')
+
         log.debug('TEST_LEVELS')
         log.info('TEST_LEVELS')
         log.warning('TEST_LEVELS')
@@ -35,6 +37,8 @@ class KwoggerTests(unittest.TestCase):
         try:
             1 + '1'
         except TypeError:
+            log.log_exc(kwogger.DEBUG, 'TEST_DYNAMIC_LEVEL', hello='world')
+
             log.debug_exc('TEST_EXCEPTION')
             log.info_exc('TEST_EXCEPTION')
             log.warning_exc('TEST_EXCEPTION')
@@ -69,7 +73,7 @@ class KwoggerTests(unittest.TestCase):
                     levels[line.level_name] += 1
 
         # check parsed log levels
-        self.assertEqual(levels['DEBUG'], 2, msg='did not get 2 debug calls')
+        self.assertEqual(levels['DEBUG'], 4, msg='did not get 4 debug calls')
         self.assertEqual(levels['INFO'], 2, msg='did not get 2 info calls')
         self.assertEqual(levels['WARNING'], 2, msg='did not get 2 warning calls')
         self.assertEqual(levels['ERROR'], 2, msg='did not get 2 error calls')

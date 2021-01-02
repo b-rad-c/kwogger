@@ -29,8 +29,12 @@ _nameToLevel = logging._nameToLevel
 
 
 def get_level(level):
-    """this function will return a tuple of (int, str) representing the integer value of level, level may be
-    the integer or string representation of the level"""
+    """
+    Get information about a logging level
+
+    :param level: (str|int) the integer or string representation of a logging level
+    :return: this function will return a tuple of (int, str) representing the level passed in
+    """
 
     try:
         level_int = _nameToLevel[level]
@@ -47,18 +51,32 @@ def get_level(level):
 
 
 def level_value(level):
-    """Convenience function to return integer regardless of input
-    :param level (int/str) return corresponding integer"""
+    """
+    Convenience function to return integer value of a logging level
+
+    :param level: (str|int) the integer or string representation of a logging level
+    :return: (int) value of logging level
+    """
     return get_level(level)[0]
 
 
 def level_name(level):
-    """Convenience function to return string regardless of input
-    :param level (int/str) return corresponding level name as str"""
+    """
+    Convenience function to return name of a logging level
+
+    :param level: (str|int) the integer or string representation of a logging level
+    :return: (str) name of logging level
+    """
     return get_level(level)[1]
 
 
 def get_level_color(level):
+    """
+    Return the name of the color for a given logging level, used for printing colorized log entries to a console
+
+    :param level: (str|int) the integer or string representation of a logging level
+    :return: (str)
+    """
     level_int = get_level(level)[0]
 
     if level_int < INFO:
@@ -76,6 +94,7 @@ def get_level_color(level):
 #
 
 class KwogFormatter(logging.Formatter):
+    """A subclass of logging.Formatter to be used with a log handler"""
 
     def format(self, record):
 
@@ -94,9 +113,9 @@ class KwogFormatter(logging.Formatter):
 
         if record.exc_info:
             exc = OrderedDict()
-            exc['class'] = KwogEntry.escape_value(record.exc_info[0].__name__)
-            exc['msg'] = KwogEntry.escape_value(str(record.exc_info[1]))
-            exc['traceback'] = KwogEntry.format_value(traceback.format_tb(record.exc_info[2]))
+            exc['class'] = KwogEntry._escape_value(record.exc_info[0].__name__)
+            exc['msg'] = KwogEntry._escape_value(str(record.exc_info[1]))
+            exc['traceback'] = KwogEntry._format_value(traceback.format_tb(record.exc_info[2]))
 
         else:
             exc = None
@@ -105,26 +124,35 @@ class KwogFormatter(logging.Formatter):
 
 
 class KwogAdapter(logging.LoggerAdapter):
-    """
-    This example adapter expects the passed in dict-like object to have a
-    'connid' key, whose value in brackets is prepended to the log message.
+    """A subclass of logging.LoggerAdapter to be used with a log handler
+
+    This adapter is designed to add contextual logging data via key value pairs to each entry over the lifetime of this
+    object.
+
     """
 
-    def __init__(self, logger, context=None):
+    def __init__(self, logger, **context):
         """
-        Initialize the adapter with a logger and a dict-like object which
-        provides contextual information. This constructor signature allows
-        easy stacking of LoggerAdapters, if so desired.
-        You can effectively pass keyword arguments as shown in the
-        following example:
-        adapter = LoggerAdapter(someLogger, dict(p1=v1, p2="v2"))
+        Initialize the adapter with a logger and context data
+
+        :param logger: The logger to be used (typical returned by logging.getLogger)
+        :param context: key word arguments to be added as context data to each entry logged by this object
         """
+
         self.logger = logger
-        self.context = {} if context is None else context
+        self.context = context
         self.timers = {}
 
-    def generate_id(self, field_name='uuid', namespace=None):
-        _id = str(uuid.uuid3(uuid.uuid4() if namespace is None else namespace, f'{time.time()}-{os.getpid()}'))
+    def generate_id(self, field_name='uuid'):
+        """
+        Generate a unique id to be added to the context logger. It uses the built in uuid.uuid3 method as passes in
+        the current unix epoch time and pid of the current running process to guarantee uniqueness on the machine
+        running this logger
+
+        :param field_name: the unique id will be added to the loggers context namespace with this name
+        :return: (str) string representation of generated uuid
+        """
+        _id = str(uuid.uuid3(uuid.uuid4(), f'{time.time()}-{os.getpid()}'))
         self.context[field_name] = _id
         return _id
 
@@ -140,77 +168,150 @@ class KwogAdapter(logging.LoggerAdapter):
         return msg, args, {'exc_info': exc_info}
 
     def log(self, level, msg, *args, **kwargs):
+        """
+        Write a log entry with a dynamically supplied level
+
+        :param level: (int) logging level to be used
+        :param msg: (str) this string will be logged on the entry as the value for the msg key
+        :param args: to be passed to underlying logging method (KwogAdapter.logger._log)
+        :param kwargs: key word data to be passed to log entry
+        :return: None
+        """
+
         if self.isEnabledFor(level):
             msg, args, kwargs = self.process(msg, args, kwargs)
             self.logger._log(level, msg, *args, **kwargs)
 
     def log_exc(self, level, msg, *args, **kwargs):
+        """
+        Write a log entry with a dynamically supplied level and pass exc_info=True to underlying logger to capture
+        exception and traceback information.
+
+        :param level: (int) logging level to be used
+        :param msg: (str) this string will be logged on the entry as the value for the msg key
+        :param args: to be passed to underlying logging method (KwogAdapter.logger._log)
+        :param kwargs: key word data to be passed to log entry
+        :return: None
+        """
         if self.isEnabledFor(level):
             msg, args, kwargs = self.process(msg, args, kwargs)
             kwargs['exc_info'] = True
             self.logger._log(level, msg, *args, **kwargs)
     
     def debug(self, msg, *args, **kwargs):
+        """
+        Write a log entry with DEBUG logging level
+
+        :param msg: (str) this string will be logged on the entry as the value for the msg key
+        :param args: to be passed to underlying logging method (KwogAdapter.logger._log)
+        :param kwargs: key word data to be passed to log entry
+        :return: None
+        """
         if self.isEnabledFor(DEBUG):
             msg, args, kwargs = self.process(msg, args, kwargs)
             self.logger._log(DEBUG, msg, *args, **kwargs)
     
     def debug_exc(self, msg, *args, **kwargs):
+        """
+        Write a log entry with DEBUG logging level and pass exc_info=True to underlying logger to capture
+        exception and traceback information.
+
+        :param msg: (str) this string will be logged on the entry as the value for the msg key
+        :param args: to be passed to underlying logging method (KwogAdapter.logger._log)
+        :param kwargs: key word data to be passed to log entry
+        :return: None
+        """
         if self.isEnabledFor(DEBUG):
             msg, args, kwargs = self.process(msg, args, kwargs)
             kwargs['exc_info'] = True
             self.logger._log(DEBUG, msg, *args, **kwargs)
     
     def info(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug except use log level INFO
+        """
         if self.isEnabledFor(INFO):
             msg, args, kwargs = self.process(msg, args, kwargs)
             self.logger._log(INFO, msg, *args, **kwargs)
     
     def info_exc(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug_exc except use log level INFO
+        """
         if self.isEnabledFor(INFO):
             msg, args, kwargs = self.process(msg, args, kwargs)
             kwargs['exc_info'] = True
             self.logger._log(INFO, msg, *args, **kwargs)
     
     def warning(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug except use log level WARNING
+        """
         if self.isEnabledFor(WARNING):
             msg, args, kwargs = self.process(msg, args, kwargs)
             self.logger._log(WARNING, msg, *args, **kwargs)
     
     def warning_exc(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug_exc except use log level WARNING
+        """
         if self.isEnabledFor(WARNING):
             msg, args, kwargs = self.process(msg, args, kwargs)
             kwargs['exc_info'] = True
             self.logger._log(WARNING, msg, *args, **kwargs)
+
+    def exception(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.warning_exc
+        """
+        if self.isEnabledFor(WARNING):
+            msg, args, kwargs = self.process(msg, args, kwargs)
+            self.logger._log(WARNING, msg, *args, **kwargs)
     
     def error(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug except use log level ERROR
+        """
         if self.isEnabledFor(ERROR):
             msg, args, kwargs = self.process(msg, args, kwargs)
             self.logger._log(ERROR, msg, *args, **kwargs)
     
     def error_exc(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug_exc except use log level ERROR
+        """
         if self.isEnabledFor(ERROR):
             msg, args, kwargs = self.process(msg, args, kwargs)
             kwargs['exc_info'] = True
             self.logger._log(ERROR, msg, *args, **kwargs)
 
     def critical(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug except use log level CRITICAL
+        """
         if self.isEnabledFor(CRITICAL):
             msg, args, kwargs = self.process(msg, args, kwargs)
             self.logger._log(CRITICAL, msg, *args, **kwargs)
 
     def critical_exc(self, msg, *args, **kwargs):
+        """
+        Same documentation as KwogAdapter.debug_exc except use log level CRITICAL
+        """
         if self.isEnabledFor(CRITICAL):
             msg, args, kwargs = self.process(msg, args, kwargs)
             kwargs['exc_info'] = True
             self.logger._log(CRITICAL, msg, *args, **kwargs)
 
-    def exception(self, msg, *args, **kwargs):
-        if self.isEnabledFor(ERROR):
-            msg, args, kwargs = self.process(msg, args, kwargs)
-            self.logger._log(ERROR, msg, *args, **kwargs)
-
     def timer_start(self, name, **kwargs):
+        """
+        Start an instance of KwogTimer and add to this object's timers dict using <name> as the key
+        and then write an INFO level log entry with the name of the timer and its start time on the entry using
+        keys timer_name and start_time respectively as additional keywords
+
+        :param name:(str)
+        :param kwargs: keywords to be passed to log entry
+        :return: None
+        """
         self.timers[name] = KwogTimer(name)
         kwargs.update(dict(self.timers[name]))
         del kwargs['elapsed_time']
@@ -221,6 +322,15 @@ class KwogAdapter(logging.LoggerAdapter):
             self.logger._log(INFO, msg, *args, **kwargs)
 
     def timer_stop(self, name, **kwargs):
+        """
+        Stop the <name> instance of KwogTimer on this object and then write an INFO level log entry with the name of the
+        timer, its start time, elapsed time and end time on the entry using keys timer_name, start_time, elapsed_time
+        and end_time respectively as additional keywords
+
+        :param name:(str)
+        :param kwargs: keywords to be passed to log entry
+        :return: None
+        """
         try:
             self.timers[name].stop()
             kwargs.update(dict(self.timers[name]))
@@ -232,6 +342,15 @@ class KwogAdapter(logging.LoggerAdapter):
             self.logger._log(INFO, msg, *args, **kwargs)
 
     def timer_checkpoint(self, name, **kwargs):
+        """
+        Get the time elapsed for <name> instance of KwogTimer on this object and then write an INFO level log entry with
+        the name of the timer, its start time and elapsed time on the entry using keys timer_name, start_time,
+        and elapsed_time respectively as additional keywords
+
+        :param name:(str)
+        :param kwargs: keywords to be passed to log entry
+        :return: None
+        """
         try:
             kwargs.update(dict(self.timers[name]))
             del kwargs['end_time']
@@ -248,23 +367,48 @@ class KwogAdapter(logging.LoggerAdapter):
 #
 
 def rotate_by_size(name, path, level=DEBUG, max_bytes=5242880, backups=5, **context):
+    """
+    Initialize an instance of KwogAdapter using built in RotatingFileHandler configured to rotate file by size
+
+    :param name: The name of the logger to be fetched with logging.getLogger
+    :param path: path to the log file
+    :param level: the logging level to instantiate the logger with
+    :param max_bytes: rotate the log file after it has reached this size
+    :param backups: keep at most this many backup log files
+    :param context: key word arguments to provide context data when instantiating KwogAdapter
+    :return: KwogAdapter
+    """
     fh = RotatingFileHandler(path, maxBytes=max_bytes, backupCount=backups)
     f = KwogFormatter()
     fh.setFormatter(f)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(fh)
-    return KwogAdapter(logger, context)
+    return KwogAdapter(logger, **context)
 
 
-def rotate_by_time(name, path, level=DEBUG, when='midnight', interval=1, backups=5, utc=False, at_time=None, **context):
+def rotate_by_time(name, path, level=DEBUG, when='midnight', interval=1, utc=False, at_time=None, backups=5, **context):
+    """
+    Initialize an instance of KwogAdapter using built in TimedRotatingFileHandler configured to rotate file by size
+
+    :param name: The name of the logger to be fetched with logging.getLogger
+    :param path: path to the log file
+    :param level: the logging level to instantiate the logger with
+    :param when: when to rotate the file, see built in logging.handlers.TimedRotatingFileHandler for more info
+    :param interval: interval to rotate the file, see built in logging.handlers.TimedRotatingFileHandler for more info
+    :param utc: if True use UTC time to determine when to rotate, else use local time
+    :param at_time: time to rotate the log file, see built in logging.handlers.TimedRotatingFileHandler for more info
+    :param backups: keep at most this many backup log files
+    :param context: key word arguments to provide context data when instantiating KwogAdapter
+    :return: KwogAdapter
+    """
     fh = TimedRotatingFileHandler(path, when=when, interval=interval, backupCount=backups, utc=utc, atTime=at_time)
     f = KwogFormatter()
     fh.setFormatter(f)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(fh)
-    return KwogAdapter(logger, context)
+    return KwogAdapter(logger, **context)
 
 
 #
@@ -284,18 +428,33 @@ class KwogEntry:
         return self.format('log_file')
 
     def __iter__(self):
-        for name, group in [('context', self.context), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
+        namespaces = [('context', self.context), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]
+        for name, group in namespaces:
             try:
                 for key, value in group.items():
                     yield '.'.join([name, key]), value
             except AttributeError:
-                if group is KeyExists:
-                    yield name, KeyExists
+                pass
 
     @classmethod
     def parse(cls, line):
         p = KwogParser(line)
         return cls(p.data.get('c', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
+
+    def format(self, formatter):
+        try:
+            _method = getattr(self, f'_formatter_{formatter}')
+
+        except AttributeError:
+            raise ValueError(f'No formatter named: {formatter}')
+
+        try:
+            return _method()
+        except KeyError:
+            print('***')
+            print(str(self))
+            print('***')
+            raise
 
     #
     # properties
@@ -317,41 +476,26 @@ class KwogEntry:
     # formatting
     #
 
-    def format(self, formatter):
-        try:
-            _method = getattr(self, f'_formatter_{formatter}')
-
-        except AttributeError:
-            raise ValueError(f'No formatter named: {formatter}')
-
-        try:
-            return _method()
-        except KeyError:
-            print('***')
-            print(str(self))
-            print('***')
-            raise
-
     @classmethod
-    def format_value(cls, value):
+    def _format_value(cls, value):
         if value is None:
             return 'None'
 
         if isinstance(value, (bool, float, int)):
             return str(value)
 
-        return '"' + cls.escape_value(str(value)) + '"'
+        return '"' + cls._escape_value(str(value)) + '"'
 
-    def format_namespace(self, parent, dictionary):
+    def _format_namespace(self, parent, dictionary):
         for key, value in dictionary.items():
 
             # this is written to only go one level into lists/dicts, this is a logging library not a datastore
             # sub lists/dicts will be converted to a string
 
-            yield '{}.{}={}'.format(parent, key, self.format_value(value))
+            yield '{}.{}={}'.format(parent, key, self._format_value(value))
 
     @staticmethod
-    def string_trunc(string):
+    def _string_trunc(string):
         length = 50
         if len(string) > length:
             return string[0:15] + ' ... ' + string[-35:]
@@ -359,7 +503,7 @@ class KwogEntry:
             return string
 
     @staticmethod
-    def escape_value(value):
+    def _escape_value(value):
         return value.replace('"', '""').replace('\n', '')
 
     #
@@ -367,12 +511,12 @@ class KwogEntry:
     #
 
     def _formatter_log_file(self):
-        items = list(self.format_namespace('s', self.source))
-        items.extend(list(self.format_namespace('e', self.entry)))
+        items = list(self._format_namespace('s', self.source))
+        items.extend(list(self._format_namespace('e', self.entry)))
         if self.exc:
-            items.extend(list(self.format_namespace('exc', self.exc)))
+            items.extend(list(self._format_namespace('exc', self.exc)))
 
-        items.extend(list(self.format_namespace('c', self.context)))
+        items.extend(list(self._format_namespace('c', self.context)))
         return ' '.join(items)
 
     def _formatter_cli(self):
@@ -382,7 +526,7 @@ class KwogEntry:
         #
 
         string = f's: {self.source["time"]} {self.level_name} {self.source["log"]}'
-        string += f' {self.string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
+        string += f' {self._string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
 
         #
         # format entry
@@ -444,112 +588,72 @@ class KwogTimer:
 # parse and file io
 #
 
-class KeyExists:
+
+class KwoggerParseError(Exception):
     pass
-
-
-class ParseError(Exception):
-    def __init__(self, msg, parser=None):
-        self.msg = msg
-        self.parser = parser
-
-    def __str__(self):
-        return str(self.msg)
 
 
 class KwogParser:
 
-    DBG = True
-
     def __init__(self, line):
         self.line = line.strip()
         self.pairs = []
-        self.log = []
         self.data = {}
         self.index = 0
-
-        self.append_log('** initialized **')
-        self.append_log(f'==={self.line}===')
 
         self.parse()
 
     def __str__(self):
         return str(self.data)
 
-    def display_log(self):
-        print('=' * 10 + ' BEGIN KWOGGER PARSER LOG ' + '=' * 10)
-        for item in self.log:
-            print(item)
-        print('=' * 10 + ' END KWOGGER PARSER LOG ' + '=' * 10)
-
-    def append_log(self, msg):
-        """this log is used to debug parser"""
-        self.log.append(msg)
-
     def parse(self):
         self._parse_pairs()
         self._format_pairs()
 
     def _parse_pairs(self):
-        self.append_log('** _parse_pairs()')
         last_break = 0
         in_string = False
         escaping = False
         for index, char in enumerate(self.line):
-            self.append_log(f'index: {index} char: {char}')
 
             if escaping and char in ['\n', ' ', '']:
-                self.append_log(f'      > out of string (end of string)')
                 escaping = False
                 in_string = False
                 self.pairs.append(self.line[last_break:index])
                 last_break = index + 1
 
             elif escaping and char == '"':
-                self.append_log(f'      > unescape')
                 escaping = False
 
             elif escaping:
-                self.append_log(f'      > unescape | out of string')
                 escaping = False
                 in_string = False
 
             elif char == ' ' and not in_string:
-                self.append_log(f'      > a: {self.line[last_break:index]}')
                 self.pairs.append(self.line[last_break:index])
                 last_break = index + 1
 
             elif char == '"' and not in_string:
-                self.append_log(f'      > in string')
                 in_string = True
 
             elif char == '"' and in_string:
-                self.append_log(f'      > escaping')
                 escaping = True
 
         if escaping:
             in_string = False
 
         if in_string:
-            raise ParseError('Could not find end of string', self)
+            raise KwoggerParseError('Could not find end of string')
 
         self.pairs.append(self.line[last_break:])
 
-        self.append_log('** end _parse_pairs()')
-
-        self.append_log('** pairs **')
-
-        for pair in self.pairs:
-            self.append_log(pair)
-
     def _format_pairs(self):
-        self.append_log('** _format_pairs()')
         for pair in self.pairs:
 
             try:
                 key, value = pair.split('=', 1)
             except ValueError:
-                raise ParseError(f'Could not parse key/value from: "{pair}"', self)
+                raise KwoggerParseError(f'Could not parse key/value from: "{pair}"')
 
             parsed_value = self._format_value(value)
 
@@ -564,62 +668,33 @@ class KwogParser:
                 except KeyError:
                     self.data[ns[0]] = {ns[1]: parsed_value}
 
-            self.append_log('** end _format_pairs()')
-
     def _format_value(self, value):
-        self.append_log('** _format_value()')
-
-        if value == '.':
-            """used in searching logs, if this value is searched for all objects with any value this key
-            will be returned"""
-            self.append_log('  > value: KeyExists')
-            return KeyExists
 
         if value == 'None':
-            self.append_log('  > value: None')
             return None
 
         if value == 'True':
-            self.append_log('  > value: True')
             return True
 
         if value == 'False':
-            self.append_log('  > value: False')
             return False
 
         if str(value).find('.') != -1:
             try:
                 float_value = float(value)
-                self.append_log('  > value: float | {value}')
                 return float_value
             except ValueError:
                 pass
 
         try:
             int_value = int(value)
-            self.append_log('  > value: int | {value}')
             return int_value
         except ValueError:
             pass
 
         if value[0:1] == '"' and value[-1:] == '"':
-            self.append_log(f'  > value: str | len: {len(value)}')
             return value[1:-1].replace('""', '"')
 
-
-
-
-            #
-            #
-            # original return
-            #
-            #
-
-
-
-            # return value.replace('""', '"')
-
-        self.append_log('  > value: default')
         return str(value)
 
 
