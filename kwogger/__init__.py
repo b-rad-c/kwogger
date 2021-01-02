@@ -89,14 +89,14 @@ def get_level_color(level):
     return 'red'
 
 
-def configure(name, log_file='logs/example.log', level=logging.DEBUG, **global_):
+def configure(name, log_file='logs/example.log', level=logging.DEBUG, **context):
     fh = logging.handlers.RotatingFileHandler(log_file, maxBytes=5242880, backupCount=5)
     f = KwogFormatter()
     fh.setFormatter(f)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(fh)
-    return KwogAdapter(logger, global_)
+    return KwogAdapter(logger, context)
 
 
 class KwogFormatter(logging.Formatter):
@@ -125,7 +125,7 @@ class KwogFormatter(logging.Formatter):
         else:
             exc = None
 
-        return str(KwogEntry(record.args['global_'], source, entry, exc))
+        return str(KwogEntry(record.args['context'], source, entry, exc))
 
 
 class KwogAdapter(logging.LoggerAdapter):
@@ -134,7 +134,7 @@ class KwogAdapter(logging.LoggerAdapter):
     'connid' key, whose value in brackets is prepended to the log message.
     """
 
-    def __init__(self, logger, global_=None):
+    def __init__(self, logger, context=None):
         """
         Initialize the adapter with a logger and a dict-like object which
         provides contextual information. This constructor signature allows
@@ -144,12 +144,12 @@ class KwogAdapter(logging.LoggerAdapter):
         adapter = LoggerAdapter(someLogger, dict(p1=v1, p2="v2"))
         """
         self.logger = logger
-        self.global_ = {} if global_ is None else global_
+        self.context = {} if context is None else context
         self.timers = {}
 
     def generate_id(self, field_name='uuid', namespace=None):
         _id = str(uuid.uuid3(uuid.uuid4() if namespace is None else namespace, f'{time.time()}-{os.getpid()}'))
-        self.global_[field_name] = _id
+        self.context[field_name] = _id
         return _id
 
     def process(self, msg, args, kwargs):
@@ -159,7 +159,7 @@ class KwogAdapter(logging.LoggerAdapter):
         except KeyError:
             exc_info = None
 
-        args = [{'global_': self.global_, 'entry': kwargs}]
+        args = [{'context': self.context, 'entry': kwargs}]
 
         return msg, args, {'exc_info': exc_info}
 
@@ -529,7 +529,8 @@ class KwogFile:
 
     def follow(self):
         try:
-            self.seek_tail()
+            for line in self:
+                yield line
 
             while True:
                 line = self._file.readline()
@@ -553,8 +554,8 @@ class KwogFile:
 
 class KwogEntry:
 
-    def __init__(self, global_=None, source=None, entry=None, exc=None, raw=None):
-        self.global_, self.source, self.entry, self.exc, self.raw,  = global_, source, entry, exc, raw
+    def __init__(self, context=None, source=None, entry=None, exc=None, raw=None):
+        self.context, self.source, self.entry, self.exc, self.raw,  = context, source, entry, exc, raw
 
     def __repr__(self):
         return f'<KwogEntry | {self.level_name} | exception={self.handling_exception}>'
@@ -565,11 +566,11 @@ class KwogEntry:
         if self.exc:
             items.extend(list(self.format_namespace('exc', self.exc)))
 
-        items.extend(list(self.format_namespace('g', self.global_)))
+        items.extend(list(self.format_namespace('c', self.context)))
         return ' '.join(items)
 
     def __iter__(self):
-        for name, group in [('global', self.global_), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
+        for name, group in [('context', self.context), ('source', self.source), ('entry', self.entry), ('exc', self.exc)]:
             try:
                 for key, value in group.items():
                     yield '.'.join([name, key]), value
@@ -580,7 +581,7 @@ class KwogEntry:
     @classmethod
     def parse(cls, line):
         p = Parser(line)
-        return cls(p.data.get('g', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
+        return cls(p.data.get('c', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
 
     @staticmethod
     def escape_value(value):
@@ -626,27 +627,23 @@ class KwogEntry:
     def _formatter_raw(self):
         return self.raw
 
-    def _formatter_data(self):
-        return str(dict(self))
-
     def _formatter_basic(self):
         string = f'source: {self.source}\n'
         string += f'entry: {self.entry}\n'
         if self.exc != {}:
             string += f'exc: {self.exc}\n'
-        if self.global_ != {}:
-            string += f'global: {self.global_}\n'
+        if self.context != {}:
+            string += f'context: {self.context}\n'
 
         return string
 
-    def _formatter_default(self):
-        level = self.source["level"]
+    def _formatter_cli(self):
 
         #
         # format source line
         #
 
-        string = f's: {self.source["time"]} {level} {self.source["log"]}'
+        string = f's: {self.source["time"]} {self.level_name} {self.source["log"]}'
         string += f' {self.string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
 
         #
@@ -670,16 +667,16 @@ class KwogEntry:
                 string += '\t' + line.replace("', '  ", '') + '\n'
 
         #
-        # format global
+        # format context
         #
 
-        if self.global_:
-            string += f'\ng: '
-            if self.global_ != {}:
-                for key, value in self.global_.items():
+        if self.context:
+            string += f'\nc: '
+            if self.context != {}:
+                for key, value in self.context.items():
                     string += f'{key}={value}\t'
 
-        return colored(string + '\n', get_level_color(level))
+        return colored(string + '\n', get_level_color(self.level_name))
 
     #
     # misc

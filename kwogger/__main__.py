@@ -9,6 +9,6 @@ args = parser.parse_args()
 
 level = kwogger.level_value(args.level)
 
-with kwogger.core.KwogFileIO(args.path, level, args.seek) as log:
+with kwogger.KwogFile(args.path, level, args.seek) as log:
     for entry in log.follow():
-        print(entry)
+        print(entry.format('cli'))

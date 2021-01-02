@@ -52,9 +52,9 @@ class KwoggerTests(unittest.TestCase):
             for line in parser:
                 self.assertIsInstance(line, kwogger.KwogEntry)
 
-                # check global values
-                self.assertTrue(line.global_['is_unit_test'], msg='missing global value: is_unit_test')
-                self.assertEqual(line.global_['test_id'], test_id, msg='missing global value: test_id')
+                # check context values
+                self.assertTrue(line.context['is_unit_test'], msg='missing context value: is_unit_test')
+                self.assertEqual(line.context['test_id'], test_id, msg='missing context value: test_id')
 
                 # check parsed data types
                 if line.entry['msg'] == 'TEST_TYPES':
