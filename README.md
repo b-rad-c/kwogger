@@ -1,13 +1,38 @@
 # Kwogger
-##### Requires Python 3.6+
+[K] e y [W] o r d L [o g g e r]
 
-#### Structured logging in python
-_key word logger (kw-ogger)_
+By Brad Corlett
 
-An easy to use adapter for the built-in python logging library to log key value paired data that easily parseable for data analytics and monitoring with tools like splunk, ELK stack and more.
+A python _LoggerAdapter_ that writes key value data to a log file while and associated classes to read and parse data 
+from files while preserving type so log entries can be further processed.
 
-### Examples
-The first argument to the log call will be stored on the entry as key 'msg'
+
+Context data can be supplied at the creation of the logger to add correlating data to each log entry over the lifetime
+of the logger. The first string argument to each log call is stored as key 'msg' and then every other kwarg passed to
+the logging call is also added, in addition to data about the log call (file, line num, level, etc) and exception
+data if relevant. Logging methods ending with _exc will automatically log exception information to save adding _exc_info_ kwarg.
+
+
+    log = kwogger.rotate_by_size('log_name', 'example.log', user_id='123')
+    
+    x, y = 1, '1'
+    
+    log.info('MESSAGE', x=x, y=y)    
+
+    try:
+        x + y
+    except:
+        log.error_exc('should have seen this coming')
+        
+  ##### Convenience function for generating unique ids
+
+    logger.generate_id(field='request_id')
+    
+    # each call to this logger will have a unique id added to it as field 'request_id'
+    # for example to to correlate all log entries or a specific web request
+    # (be sure to not share sensitive data across requests)
+       
+##### Longer example
 
 
     # basic
@@ -35,41 +60,31 @@ The first argument to the log call will be stored on the entry as key 'msg'
 
 This custom serialization format retains data type for None, bool, int, float, and str, any other value is converted to and serialized as a string. A built-in parser can deserialize read from a log file the data and retain type for post processing. 
 
-##### structure of log entries
+### structure of log entries
 
-The **source** namespace contains information about the file and logging call such as line number and time data. 
-
-    s.time="2019-02-28 23:02:15.561370" s.log="basic" s.level="INFO" s.path="examples/basic.py" s.func="<module>" s.lineno=7
-
-The **entry** namespace, this is where user data goes. The first argument to a logging call is stored as msg, and additional keywords go in this namespace as well.
+**entry** - this is data passed to a logging method like `.info()` or `.error_exc()` The first argument to a logging call is stored added to the kwarg dictionary as key 'msg' and they are then logged together
 
     e.msg="Sample message" e.key1="hello" e.key2="world"
+
+**context** - context data previously set on logger and passed to every log entry from a method like `.info()` or `.error_exc()`
+
+    c.user_id="123"
+
+**source** - This namespace contains information about the file and logging call such as line number and time data. 
+
+    s.time="2019-02-28 23:02:15.561370" s.log="basic" s.level="INFO" s.path="examples/basic.py" s.func="<module>" s.lineno=7
    
-The exception namespace exists when handling an exception it's data is stored in this namespace
+**exception** - this exists when handling an exception it's data is stored in this namespace
 exc._attribute_
 
     exc.class="ZeroDivisionError" exc.msg="division by zero" exc.traceback="""['  File """"examples/basic.py"""", line 17, in <module>\n    z = x / y\n']"""
 
-The **global** namespace stores global data applied to every log entry (more info on this below)
 
-### Global logging variables
-This library uses a logger adapter from the built in logging library which provides contextual values to the logger that the vanilla python logger does not have.
-
-We can provide global data when initializing the logger and that data will be printed on each call to that logger over its lifetime.
-
-    logger = kwogger.log(__name__, guid=123)
-    logger.info('test')
+### Parsing log files
     
-    # example output, scroll right to see global data
-    s.time="2020-12-18 23:01:34.816537" s.log="test" s.level="INFO" s.path="./test.py" s.func="<module>" s.lineno=5 e.msg="test" g.guid=123
+    need_sample_here
 
-    
-When analyzing logs later all entries for this execution can be found by filtering for 'guid=123'
 
-Convenience function for generating unique ids
-
-    # each call to this logger will have a unique id added to it as field 'req_id'
-    logger.generate_id(field='req_id')
     
 ### Built in timer
 Helpful for timing long running processes to find bottle necks.
@@ -97,10 +112,6 @@ Helpful for timing long running processes to find bottle necks.
     s: 2019-02-28 23:33:08.167841 INFO timer1 examples/timer1.py func: main line: 28
     e: msg=TIMER_STOPPED	complete=True	timer_name=hello	start_time=1551425585.1610172	elapsed_time=3.006769895553589	end_time=1551425588.167787
     
-### Sensitive data
-It is important to note that global data is available on this object over its life time, meaning it **should not** be re-used between requests if in a web server environment. It must be instantiated for each request to prevent data leaking to log entries spanning multiple requests.
-
-### Parsing utility
 
 ### Tail utility
 The built in CLI utility tails and parses the above entries and makes them more readable.

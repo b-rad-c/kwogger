@@ -417,9 +417,52 @@ def rotate_by_time(name, path, level=DEBUG, when='midnight', interval=1, utc=Fal
 
 
 class KwogEntry:
+    """
+    The KwogEntry class has four "namespaces" for storing key/value data in each log entry. The values can be of
+    any type but only None, bool, int, float and str and preserved when serializing to the log file and parsing
+    afterword. Any other value will be cast to a string with str before serializing.
+
+    namespaces:
+        context
+            the kwargs attached to the logging adapter, this data is added to each log entry over the
+            lifetime of the KwogAdapter object to correlate ane search multiple entries
+        source
+            information about the log entry such as timestamp, level, module and line number
+        entry
+            The first string argument to the logging call (info, error_exc, etc) is places in this namespace under
+            field name 'msg'. All other kwargs from that call are set here. Order is preserved with OrderedDict
+        exception
+            When handling and exception this contains three fields, the 'class' name of the exception,
+            the exception's 'msg' and 'traceback'
+
+    When serialized before writing the namespaces are abbreviated to c, s, e and exc respectively.
+
+    example:
+
+        [written to log file as a single line, using breaks here for readability]
+
+        s.time="2021-01-05 23:28:23.253117"
+        s.log="test_kwogger" s.level="WARNING" s.path="./test_kwogger.py" s.func="my_func_name" s.lineno=44
+
+        e.msg="TEST_EXCEPTION"  e.field1=None e.field2=True e.field3=1 e.field4=1.5 e.field5="hello"
+        e.other_type="<module 'os' from 'os.py'>"
+
+        exc.class="TypeError"
+        exc.msg="unsupported operand type(s) for +: 'int' and 'str'"
+        exc.traceback="[ ... truncated ... ]"
+
+        c.is_unit_test=True c.test_id="70ea8059-f6c5-3f52-855b-15531e2824d4"
+    """
 
     def __init__(self, context=None, source=None, entry=None, exc=None, raw=None):
-        self.context, self.source, self.entry, self.exc, self.raw,  = context, source, entry, exc, raw
+        """
+        :param context: (None|dict) key value pairs for data in this namespace or None
+        :param source: (None|dict) key value pairs for data in this namespace or None
+        :param entry: (None|dict) key value pairs for data in this namespace or None
+        :param exc: (None|dict) key value pairs for data in this namespace or None
+        :param raw: (str) the original line as read from file
+        """
+        self.context, self.source, self.entry, self.exc, self.raw, = context, source, entry, exc, raw
 
     def __repr__(self):
         return f'<KwogEntry | {self.level_name} | exception={self.handling_exception}>'
@@ -435,42 +478,6 @@ class KwogEntry:
                     yield '.'.join([name, key]), value
             except AttributeError:
                 pass
-
-    @classmethod
-    def parse(cls, line):
-        p = KwogParser(line)
-        return cls(p.data.get('c', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
-
-    def format(self, formatter):
-        try:
-            _method = getattr(self, f'_formatter_{formatter}')
-
-        except AttributeError:
-            raise ValueError(f'No formatter named: {formatter}')
-
-        try:
-            return _method()
-        except KeyError:
-            print('***')
-            print(str(self))
-            print('***')
-            raise
-
-    #
-    # properties
-    #
-
-    @property
-    def level(self):
-        return level_value(self.source['level'])
-
-    @property
-    def level_name(self):
-        return self.source['level']
-
-    @property
-    def handling_exception(self):
-        return self.exc != {}
 
     #
     # formatting
@@ -488,7 +495,6 @@ class KwogEntry:
 
     def _format_namespace(self, parent, dictionary):
         for key, value in dictionary.items():
-
             # this is written to only go one level into lists/dicts, this is a logging library not a datastore
             # sub lists/dicts will be converted to a string
 
@@ -511,6 +517,11 @@ class KwogEntry:
     #
 
     def _formatter_log_file(self):
+        """
+        For serializing this entry and then writing to a log file
+
+        :return: (str)
+        """
         items = list(self._format_namespace('s', self.source))
         items.extend(list(self._format_namespace('e', self.entry)))
         if self.exc:
@@ -520,6 +531,11 @@ class KwogEntry:
         return ' '.join(items)
 
     def _formatter_cli(self):
+        """
+        For printing this entry to a console with color
+
+        :return: (str)
+        """
 
         #
         # format source line
@@ -560,20 +576,91 @@ class KwogEntry:
 
         return colored(string + '\n', get_level_color(self.level_name))
 
+    #
+    # properties
+    #
+
+    @property
+    def level(self):
+        """
+        :return: (int) the numerical value of the entry's log level
+        """
+        return level_value(self.source['level'])
+
+    @property
+    def level_name(self):
+        """
+        :return: (str) the name of the entry's log level
+        """
+        return self.source['level']
+
+    @property
+    def handling_exception(self):
+        """
+        :return: (bool) whether or not this entry is handling and exception
+        """
+        return self.exc != {}
+
+    #
+    # interface methods
+    #
+
+    @classmethod
+    def parse(cls, line):
+        """
+        Parse a line from a log file and return an entry of this class
+
+        :param line: (str) the line as read from the log file (with or without trailing line break)
+        :return: (KwogEntry)
+        """
+        p = KwogParser(line)
+        return cls(p.data.get('c', {}), p.data.get('s', {}), p.data.get('e', {}), p.data.get('exc', {}), line)
+
+    def format(self, formatter):
+        """
+        Format a string from the data on this object
+
+        :param formatter: (str) the name of the formatter,
+            must reference a method on this object with naming convention "_formatter_{formatter}"
+
+            built in formatters:
+                'log_file' for serializing to a log file
+                'cli' for printing to a console with colors
+
+        :return: (str)
+        """
+        try:
+            _method = getattr(self, f'_formatter_{formatter}')
+
+        except AttributeError:
+            raise ValueError(f'No formatter named: {formatter}')
+
+        return _method()
+
 
 @dataclass
 class KwogTimer:
+    """
+    Simple class for timing a task
+    """
     name: str
     start_time: float = field(default_factory=time.time)
     end_time: float = None
 
     def elapsed_time(self):
+        """
+        :return: (float) the time elapsed from 'start_time' to 'end_time', or time.time() if still running
+        """
         try:
             return self.end_time - self.start_time
         except TypeError:
             return time.time() - self.start_time
 
     def stop(self):
+        """
+        stop the timer (set the end_time on the object)
+        :return: (None)
+        """
         self.end_time = time.time()
 
     def __iter__(self):
@@ -594,21 +681,30 @@ class KwoggerParseError(Exception):
 
 
 class KwogParser:
+    """
+    Parse data from a KwogEntry serialized to a string with KwogEntry._formatter_log_file (default when writing to
+    a log file) and set each namespace on self.data. Parsing is done during instantiation.
+
+    example:
+    self.data = {'s': {...}, 'e': {...}, 'c': {...}, 'exc': {...}}
+    """
 
     def __init__(self, line):
+        """
+
+        :param line:
+        """
         self.line = line.strip()
         self.pairs = []
         self.data = {}
         self.index = 0
 
-        self.parse()
+        # parse input
+        self._parse_pairs()
+        self._format_pairs()
 
     def __str__(self):
         return str(self.data)
-
-    def parse(self):
-        self._parse_pairs()
-        self._format_pairs()
 
     def _parse_pairs(self):
         last_break = 0
@@ -668,7 +764,8 @@ class KwogParser:
                 except KeyError:
                     self.data[ns[0]] = {ns[1]: parsed_value}
 
-    def _format_value(self, value):
+    @staticmethod
+    def _format_value(value):
 
         if value == 'None':
             return None
@@ -699,8 +796,17 @@ class KwogParser:
 
 
 class KwogFile:
+    """
+    Utility for parsing and tailing a log file.
+
+    """
 
     def __init__(self, path, level=DEBUG, seek='head'):
+        """
+        :param path: (str) the path to the log file
+        :param level: (int) ignore entries below this log level
+        :param seek: (str, 'head'|'tail', default=head) seek to the head of tail of a file when instantiating
+        """
         self.path = path
         self.level = level
         self._file = open(path, 'r')
@@ -722,23 +828,6 @@ class KwogFile:
             except AttributeError:
                 raise StopIteration
 
-    #
-    # file handler
-    #
-
-    def seek_head(self):
-        self._file.seek(0)
-
-    def seek_tail(self):
-        self._file.seek(0, os.SEEK_END)
-
-    def close(self):
-        self._file.close()
-
-    #
-    # context manager
-    #
-
     def __enter__(self):
         return self
 
@@ -746,10 +835,43 @@ class KwogFile:
         self.close()
 
     #
-    # methods for getting data
+    # file handler
+    #
+
+    def seek_head(self):
+        """
+        Seek to the head of the file
+
+        :return: None
+        """
+        self._file.seek(0)
+
+    def seek_tail(self):
+        """
+        Seek to the tail of the file
+
+        :return:
+        """
+        self._file.seek(0, os.SEEK_END)
+
+    def close(self):
+        """
+        Close the file handle
+
+        :return: None
+        """
+        self._file.close()
+
+    #
+    # interface methods
     #
 
     def follow(self):
+        """
+        Parse and yield remaining lines from current position in file to EOF and then follow file like unix 'tail -f' cmd
+
+        :yields: (KwogEntry)
+        """
         try:
             for line in self:
                 yield line
@@ -766,9 +888,11 @@ class KwogFile:
             pass
 
     def parse_line(self):
-        """parse the next line,
-        formatter: method as formatter to use a specific formatter w/o changing self._format
-        :returns: str, or None if we are at EOF"""
+        """
+        Get next line in file using readline and return parsed KwogEntry
+
+        :return: (KwogEntry)
+        """
         line = self._file.readline()
         if line:
             return KwogEntry.parse(line)
