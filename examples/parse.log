@@ -1,0 +1,5 @@
+s.time="2021-01-06 21:35:48.246543" s.log="parser" s.level="DEBUG" s.path="./parser.py" s.func="generate" s.lineno=11 e.msg="hmm... this doesn't look right"
+s.time="2021-01-06 21:35:48.246820" s.log="parser" s.level="INFO" s.path="./parser.py" s.func="generate" s.lineno=13 e.msg="logging user info" e.color="orange" e.num=10
+s.time="2021-01-06 21:35:48.246929" s.log="parser" s.level="INFO" s.path="./parser.py" s.func="generate" s.lineno=14 e.msg="logging user info" e.color="blue" e.num=5
+s.time="2021-01-06 21:35:48.247029" s.log="parser" s.level="WARNING" s.path="./parser.py" s.func="generate" s.lineno=16 e.msg="Sample message" e.num=10
+s.time="2021-01-06 21:35:48.247130" s.log="parser" s.level="ERROR" s.path="./parser.py" s.func="generate" s.lineno=22 e.msg="Problem dividing" e.x=1 e.y=0 exc.class="ZeroDivisionError" exc.msg="division by zero" exc.traceback="""['  File """"./parser.py"""", line 20, in generate\n    z = x / y\n']"""

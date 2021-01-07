@@ -4,8 +4,8 @@ import kwogger
 LOG_FILE = './parse.log'
 
 
-def generate_log():
-    log = kwogger.rotate_by_size('parse-sample', LOG_FILE, kwogger.DEBUG)
+def generate():
+    log = kwogger.rotate_by_size('parser', LOG_FILE)
 
     # basic
     log.debug("hmm... this doesn't look right")
@@ -19,26 +19,35 @@ def generate_log():
     try:
         z = x / y
     except ZeroDivisionError:
-        # automatically gets exception data and traceback from sys module
         log.error_exc('Problem dividing', x=x, y=y)
+
+
+def display():
+    with kwogger.KwogFile(LOG_FILE) as log:
+        for entry in log:
+            print(entry)
 
 
 def parse():
     with kwogger.KwogFile(LOG_FILE) as log:
         for entry in log:
-            breakpoint()
-            print(type(entry))
-            print(entry)
+            print(repr(entry))
+            print('\tsource   ', entry.source)
+            print('\tentry    ', entry.entry)
+            print('\tcontext  ', entry.context)
+            print('\texception', entry.exc, '\n')
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=['generate_log', 'parse'])
+    parser.add_argument('mode', choices=['generate', 'display', 'parse'])
     args = parser.parse_args()
 
-    if args.mode == 'generate_log':
-        generate_log()
+    if args.mode == 'generate':
+        generate()
+    elif args.mode == 'display':
+        display()
     elif args.mode == 'parse':
         parse()
 

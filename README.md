@@ -3,6 +3,13 @@
 
 By Brad Corlett
 
+####Documentation
+
+* sample code and log files are in ./examples
+* see ./API.txt for API reference
+
+##Description and Tutorial
+
 A python _LoggerAdapter_ that writes key value data to a log file while and associated classes to read and parse data 
 from files while preserving type so log entries can be further processed.
 
@@ -10,55 +17,35 @@ from files while preserving type so log entries can be further processed.
 Context data can be supplied at the creation of the logger to add correlating data to each log entry over the lifetime
 of the logger. The first string argument to each log call is stored as key 'msg' and then every other kwarg passed to
 the logging call is also added, in addition to data about the log call (file, line num, level, etc) and exception
-data if relevant. Logging methods ending with _exc will automatically log exception information to save adding _exc_info_ kwarg.
+data if relevant. Logging methods ending with _exc will automatically log exception information to save adding _exc_info_ kwarg. 
+The order of key words as passed to the log method is preserved when written to a log for consistent readability
 
 
-    log = kwogger.rotate_by_size('log_name', 'example.log', user_id='123')
-    
-    x, y = 1, '1'
-    
-    log.info('MESSAGE', x=x, y=y)    
+    log = kwogger.rotate_by_size('simple', 'simple.log', hello='world', global_context_data=True)
 
-    try:
-        x + y
-    except:
-        log.error_exc('should have seen this coming')
-        
-  ##### Convenience function for generating unique ids
+    # this and subsequent calls will also log kwargs from instantiation (hello='world', global_context_data=True)
+    log.info('Sample message')
 
-    logger.generate_id(field='request_id')
-    
-    # each call to this logger will have a unique id added to it as field 'request_id'
-    # for example to to correlate all log entries or a specific web request
-    # (be sure to not share sensitive data across requests)
-       
-##### Longer example
+    log.info('Sample message', key1='hello', key2='world')
 
+    log.info('Sample data types', a=None, b=True, c=1, d=1.1, e='string')
 
-    # basic
-    logger.info('Sample message')
-    
-    # key values
-    logger.info('Sample message', key1='hello', key2='world')
-    
-    # various data types in key values
-    logger.info('Sample message', a=None, b=True, c=1, d=1.1, e='string', f=open)
-    
     x, y = 1, 0
     try:
         z = x / y
     except ZeroDivisionError:
         # automatically gets exception data and traceback from sys module
-        logger.error_exc('Problem dividing', x=x, y=y)
+        log.error_exc('Problem dividing', x=x, y=y)
 
 ##### output to log file
 
-    s.time="2019-02-28 23:02:15.561370" s.log="basic" s.level="INFO" s.path="examples/basic.py" s.func="<module>" s.lineno=7 e.msg="Sample message"
-    s.time="2019-02-28 23:02:15.561586" s.log="basic" s.level="INFO" s.path="examples/basic.py" s.func="<module>" s.lineno=10 e.msg="Sample message" e.key1="hello" e.key2="world"
-    s.time="2019-02-28 23:02:15.561749" s.log="basic" s.level="INFO" s.path="examples/basic.py" s.func="<module>" s.lineno=13 e.msg="Sample message" e.a=None e.b=True e.c=1 e.d=1.1 e.e="string" e.f="<built-in function open>"
-    s.time="2019-02-28 23:11:52.021554" s.log="basic" s.level="ERROR" s.path="examples/basic.py" s.func="<module>" s.lineno=19 e.msg="Problem dividing" e.x=1 e.y=0 exc.class="ZeroDivisionError" exc.msg="division by zero" exc.traceback="""['  File """"examples/basic.py"""", line 17, in <module>\n    z = x / y\n']"""
+    s.time="2021-01-06 21:44:19.773767" s.log="simple" s.level="INFO" s.path="./simple.py" s.func="main" s.lineno=10 e.msg="Sample message" c.hello="world" c.global_context_data=True
+    s.time="2021-01-06 21:44:19.774036" s.log="simple" s.level="INFO" s.path="./simple.py" s.func="main" s.lineno=13 e.msg="Sample message" e.key1="hello" e.key2="world" c.hello="world" c.global_context_data=True
+    s.time="2021-01-06 21:44:19.774152" s.log="simple" s.level="INFO" s.path="./simple.py" s.func="main" s.lineno=16 e.msg="Sample message" e.a=None e.b=True e.c=1 e.d=1.1 e.e="string" c.hello="world" c.global_context_data=True
+    s.time="2021-01-06 21:44:19.774305" s.log="simple" s.level="ERROR" s.path="./simple.py" s.func="main" s.lineno=23 e.msg="Problem dividing" e.x=1 e.y=0 exc.class="ZeroDivisionError" exc.msg="division by zero" exc.traceback="""['  File """"./simple.py"""", line 20, in main\n    z = x / y\n']""" c.hello="world" c.global_context_data=True
 
-This custom serialization format retains data type for None, bool, int, float, and str, any other value is converted to and serialized as a string. A built-in parser can deserialize read from a log file the data and retain type for post processing. 
+
+This custom serialization format is easy to read as a log file but retains data type for None, bool, int, float, and str, any other value is converted to and serialized as a string. A built-in parser can deserialize read from a log file the data and retain type for post processing. 
 
 ### structure of log entries
 
@@ -85,21 +72,31 @@ exc._attribute_
     need_sample_here
 
 
+### Convenience function for generating unique ids
+
+    logger.generate_id(field='request_id')
     
+    # each call to this logger will have a unique id added to it's context dict as key 'request_id'
+    # for example to to correlate all log entries for a specific web request (make sure each request starts
+    # with a new instance to prevent sharing data across multiple requests
+    
+
 ### Built in timer
 Helpful for timing long running processes to find bottle necks.
 
 **source**
 
-    logger.timer_start('hello', value=1)
+    log = kwogger.rotate_by_size('timer', 'timer.log')
+
+    log.timer_start('hello', details='we are starting a timer named hello')
 
     time.sleep(1.5)
 
-    logger.timer_checkpoint('hello', processing=True)
-
+    log.timer_checkpoint('hello', details='we are logging a checkpoint for timer hello')
+    
     time.sleep(1.5)
 
-    logger.timer_stop('hello', complete=True)
+    log.timer_stop('hello', details='we are stopping the timer and logging the elapsed time')
     
 **log**
     
@@ -113,7 +110,7 @@ Helpful for timing long running processes to find bottle necks.
     e: msg=TIMER_STOPPED	complete=True	timer_name=hello	start_time=1551425585.1610172	elapsed_time=3.006769895553589	end_time=1551425588.167787
     
 
-### Tail utility
+### CLI tail utility
 The built in CLI utility tails and parses the above entries and makes them more readable.
 
     s: 2019-02-28 23:02:15.561370 INFO basic examples/basic.py func: <module> line: 7
@@ -138,15 +135,10 @@ The CLI utility uses the 'termcolor' library to vary the color of each entry bas
     INFO=green
     WARNING=yellow
     ERROR=red
-    
-The tail utility also has searching capabilities
-    + simple search function equivalent to 'grep'ing each log entry as a line 
-    + advanced search by matching key/value pair data.
 
-Tail utility can be used by calling the module directly.
+Tail utility can be used by calling the module directly and providing a path
     
     python3 -m kwogger example.log
     
-The utility is based on the built-in cmd module and help can be found by pressing ctrl+c while tailing and then entering '?' at the prompt.
-
-### API Reference
+    # see help menu for more options
+    python3 -m kwogger -h

@@ -1,0 +1,4 @@
+s.time="2021-01-06 21:44:19.773767" s.log="simple" s.level="INFO" s.path="./simple.py" s.func="main" s.lineno=10 e.msg="Sample message" c.hello="world" c.global_context_data=True
+s.time="2021-01-06 21:44:19.774036" s.log="simple" s.level="INFO" s.path="./simple.py" s.func="main" s.lineno=13 e.msg="Sample message" e.key1="hello" e.key2="world" c.hello="world" c.global_context_data=True
+s.time="2021-01-06 21:44:19.774152" s.log="simple" s.level="INFO" s.path="./simple.py" s.func="main" s.lineno=16 e.msg="Sample message" e.a=None e.b=True e.c=1 e.d=1.1 e.e="string" c.hello="world" c.global_context_data=True
+s.time="2021-01-06 21:44:19.774305" s.log="simple" s.level="ERROR" s.path="./simple.py" s.func="main" s.lineno=23 e.msg="Problem dividing" e.x=1 e.y=0 exc.class="ZeroDivisionError" exc.msg="division by zero" exc.traceback="""['  File """"./simple.py"""", line 20, in main\n    z = x / y\n']""" c.hello="world" c.global_context_data=True
