@@ -1,0 +1,5 @@
+s.time="2021-01-09 11:57:47.860323" s.log="parser" s.level="DEBUG" s.path="./parser.py" s.func="write_log" s.lineno=11 e.msg="hmm... this doesn't look right" c.pid=40656
+s.time="2021-01-09 11:57:47.860597" s.log="parser" s.level="INFO" s.path="./parser.py" s.func="write_log" s.lineno=13 e.msg="logging user info" e.color="orange" e.num=10 c.pid=40656
+s.time="2021-01-09 11:57:47.860708" s.log="parser" s.level="INFO" s.path="./parser.py" s.func="write_log" s.lineno=14 e.msg="logging user info" e.color="blue" e.num=5 c.pid=40656
+s.time="2021-01-09 11:57:47.860812" s.log="parser" s.level="WARNING" s.path="./parser.py" s.func="write_log" s.lineno=16 e.msg="Sample message" e.num=10 c.pid=40656
+s.time="2021-01-09 11:57:47.860915" s.log="parser" s.level="ERROR" s.path="./parser.py" s.func="write_log" s.lineno=22 e.msg="Problem dividing" e.x=1 e.y=0 exc.class="ZeroDivisionError" exc.msg="division by zero" exc.traceback="""['  File """"./parser.py"""", line 20, in write_log\n    z = x / y\n']""" c.pid=40656
