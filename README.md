@@ -3,6 +3,10 @@
 
 By Brad Corlett
 
+#### Installation
+
+    pip install Kwogger
+
 
 #### Documentation
 
