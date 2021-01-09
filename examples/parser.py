@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import kwogger
-
+import os
 LOG_FILE = './parse.log'
 
 
-def generate():
-    log = kwogger.rotate_by_size('parser', LOG_FILE)
+def write_log():
+    log = kwogger.rotate_by_size('parser', LOG_FILE, pid=os.getpid())
 
     # basic
     log.debug("hmm... this doesn't look right")
@@ -41,11 +41,11 @@ def parse():
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=['generate', 'display', 'parse'])
+    parser.add_argument('mode', choices=['write_log', 'display', 'parse'])
     args = parser.parse_args()
 
-    if args.mode == 'generate':
-        generate()
+    if args.mode == 'write_log':
+        write_log()
     elif args.mode == 'display':
         display()
     elif args.mode == 'parse':

@@ -6,9 +6,12 @@ import os
 import datetime
 import traceback
 from collections import OrderedDict
-from termcolor import colored
 from dataclasses import dataclass, field
 
+try:
+    from termcolor import colored
+except ModuleNotFoundError:
+    pass
 
 #
 # logging levels
@@ -574,7 +577,10 @@ class KwogEntry:
                 for key, value in self.context.items():
                     string += f'{key}={value}\t'
 
-        return colored(string + '\n', get_level_color(self.level_name))
+        try:
+            return colored(string + '\n', get_level_color(self.level_name))
+        except NameError:
+            return string + '\n'
 
     #
     # properties
