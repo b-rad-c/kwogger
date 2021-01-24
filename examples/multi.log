@@ -1,0 +1,3 @@
+s.time="2021-01-24 14:48:03.441721" s.log="multiple" s.level="INFO" s.path="./multiple.py" s.func="main" s.lineno=7 c.main_context=True e.msg="MESSAGE_1"
+s.time="2021-01-24 14:48:03.444549" s.log="multiple" s.level="INFO" s.path="./multiple.py" s.func="main" s.lineno=10 c.main_context=True c.first_request=True c.request_id="2e7e68c5-edd6-3607-99aa-7f46f81f472d" e.msg="MESSAGE_2"
+s.time="2021-01-24 14:48:03.444713" s.log="multiple" s.level="INFO" s.path="./multiple.py" s.func="main" s.lineno=13 c.main_context=True c.second_request=True c.request_id="34f02063-abf2-37a4-be9a-68256de5d8af" e.msg="MESSAGE_3"

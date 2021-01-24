@@ -53,6 +53,32 @@ The order of key words as passed to the log method is preserved when written to 
 
 This custom serialization format is easy to read as a log file but retains data type for `None`, `bool`, `int`, `float`, and `str`, any other value is converted to and serialized as a string. A built-in parser can deserialize read from a log file the data and retain type for post processing. 
 
+
+### Initializing loggers
+The `rotate_by_size` and `rotate_by_time` are convenience functions for creating a log handle, file path, level and rotation settings. It also returns and instance of `KwogAdapter` and adds kwargs to its context.
+
+The `new` function creates a new instance of `KwogAdapter` with the specified logger. It is also able to generate a unique id and inherent context kwargs from an existing logger.
+This function is useful for creating a new context for every request in a web server, by using `new` to overwrite an existing logger you can be sure data is not shared between requests.
+
+example:
+
+    main_log = kwogger.rotate_by_size('multi', 'multi.log', main_context=True)
+    main_log.info('MESSAGE_1')
+
+    log = kwogger.new('multi', 'request_id', main_log, first_request=True)
+    log.info('MESSAGE_2')
+
+    log = kwogger.new('multi', 'request_id', main_log, second_request=True)
+    log.info('MESSAGE_3')
+    
+output:
+    
+    s.time="2021-01-24 14:17:18.624784" s.log="multiple" s.level="INFO" s.path="./multiple.py" s.func="main" s.lineno=7 c.main_context=True e.msg="MESSAGE_1"
+    s.time="2021-01-24 14:17:18.628171" s.log="multiple" s.level="INFO" s.path="./multiple.py" s.func="main" s.lineno=10 c.main_context=True c.first_request=True c.request_id="c3e2588e-47f7-36a0-bbed-fe1b15ff0184" e.msg="MESSAGE_2"
+    s.time="2021-01-24 14:17:18.628364" s.log="multiple" s.level="INFO" s.path="./multiple.py" s.func="main" s.lineno=13 c.main_context=True c.second_request=True c.request_id="bc0840e4-aacd-341a-aebb-6690015f2a07" e.msg="MESSAGE_3"
+
+
+
 ### Structure of log entries
 Each log entry consists of four different key value dictionaries, each is explained below.
 

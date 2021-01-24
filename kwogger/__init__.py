@@ -414,6 +414,29 @@ def rotate_by_time(name, path, level=DEBUG, when='midnight', interval=1, utc=Fal
     return KwogAdapter(logger, **context)
 
 
+def new(name, unique_id=None, extend=None, **context):
+    """
+    Return a new instance of logger [name] with new context [context]. Optionally add a unique id by passing
+    a fieldname to unique_id or an instance of a KwogAdapter to extend to extend the context provided to this instance
+
+    :param name: (str) the name of the logger to get
+    :param unique_id: (str) if provided use .generate_id() to add an id to this logger using this as the field name
+    :param extend: (KwogAdapter) if provided update **context with context from this logger
+    :param context: additional kwargs to add to the new logger instance's context
+
+    :return:KwogAdapter
+    """
+    if extend is not None:
+        # retain key order with parent keys before new context
+        context = {**extend.context, **context}
+
+    logger = KwogAdapter(logging.getLogger(name), **context)
+    if unique_id is not None:
+        logger.generate_id(unique_id)
+
+    return logger
+
+
 #
 # Kwogger classes
 #
@@ -526,11 +549,11 @@ class KwogEntry:
         :return: (str)
         """
         items = list(self._format_namespace('s', self.source))
+        items.extend(list(self._format_namespace('c', self.context)))
         items.extend(list(self._format_namespace('e', self.entry)))
         if self.exc:
             items.extend(list(self._format_namespace('exc', self.exc)))
 
-        items.extend(list(self._format_namespace('c', self.context)))
         return ' '.join(items)
 
     def _formatter_cli(self):
@@ -546,6 +569,16 @@ class KwogEntry:
 
         string = f's: {self.source["time"]} {self.level_name} {self.source["log"]}'
         string += f' {self._string_trunc(self.source["path"])} func: {self.source["func"]} line: {self.source["lineno"]}'
+
+        #
+        # format context
+        #
+
+        if self.context:
+            string += f'\nc: '
+            if self.context != {}:
+                for key, value in self.context.items():
+                    string += f'{key}={value}\t'
 
         #
         # format entry
@@ -567,16 +600,7 @@ class KwogEntry:
             for line in tb:
                 string += '\t' + line.replace("', '  ", '') + '\n'
 
-        #
-        # format context
-        #
-
-        if self.context:
-            string += f'\nc: '
-            if self.context != {}:
-                for key, value in self.context.items():
-                    string += f'{key}={value}\t'
-
+        # return
         try:
             return colored(string + '\n', get_level_color(self.level_name))
         except NameError:

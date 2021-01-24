@@ -605,6 +605,17 @@ FUNCTIONS
         :param level: (str|int) the integer or string representation of a logging level
         :return: (int) value of logging level
     
+    new(name, unique_id=None, extend=None, **context)
+        Return a new instance of logger [name] with new context [context]. Optionally add a unique id by passing
+        a fieldname to unique_id or an instance of a KwogAdapter to extend to extend the context provided to this instance
+        
+        :param name: (str) the name of the logger to get
+        :param unique_id: (str) if provided use .generate_id() to add an id to this logger using this as the field name
+        :param extend: (KwogAdapter) if provided update **context with context from this logger
+        :param context: additional kwargs to add to the new logger instance's context
+        
+        :return:KwogAdapter
+    
     rotate_by_size(name, path, level=10, max_bytes=5242880, backups=5, **context)
         Initialize an instance of KwogAdapter using built in RotatingFileHandler configured to rotate file by size
         
