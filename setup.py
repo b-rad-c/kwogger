@@ -9,7 +9,7 @@ setuptools.setup(
     description='A logging adapter that provides context data to each logging call over its lifetime.',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    version='0.2.0',
+    version='0.2.1',
     packages=['kwogger'],
     install_requires=[
         'termcolor'
