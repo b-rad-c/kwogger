@@ -1,4 +1,9 @@
 # Kwogger
+
+⚠️ WARNING - NO LONGER MAINTAINED ⚠️
+
+🛑 PROJECT ARCHIVED 🛑
+
 [K] e y [W] o r d L [o g g e r]
 
 By Brad Corlett
